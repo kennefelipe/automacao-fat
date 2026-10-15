@@ -249,21 +249,20 @@ st.markdown("""
 # Exemplo: "Nome": [1, 2, 3, 10, 15]
 # ---------------------------------------------------------------------------
 COLABORADORES_ZONAS = {
-    # "Colaborador 01": [],  # Preencher com as zonas
-    # "Colaborador 02": [],  # Preencher com as zonas
-    # "Colaborador 03": [],  # Preencher com as zonas
-    # "Colaborador 04": [],  # Preencher com as zonas
-    # "Colaborador 05": [],  # Preencher com as zonas
-    # "Colaborador 06": [],  # Preencher com as zonas
-    # "Colaborador 07": [],  # Preencher com as zonas
-    # "Colaborador 08": [],  # Preencher com as zonas
-    # "Colaborador 09": [],  # Preencher com as zonas
-    # "Colaborador 10": [],  # Preencher com as zonas
-    # "Colaborador 11": [],  # Preencher com as zonas
-    # "Colaborador 12": [],  # Preencher com as zonas
-    # "Colaborador 13": [],  # Preencher com as zonas
-    # "Colaborador 14": [],  # Preencher com as zonas
-    # "Colaborador 15": [],  # Preencher com as zonas
+    "AMANDA BARCELLOS (AMANDA.BARCELLOS)": [12, 19, 27, 38, 54, 68, 81, 92, 106, 129, 169, 181, 195, 209, 221, 222, 228, 249, 275, 285, 292, 311, 403, 404, 416, 439, 444, 446, 463],
+    "CAROLINE DE OLIVEIRA SANTOS (CAROLINE.OSANTOS)": [6, 10, 17, 18, 32, 37, 48, 50, 53, 58, 61, 67, 74, 75, 76, 77, 78, 80, 89, 91, 93, 103, 104, 109, 111, 113, 117, 120, 121, 123, 124, 125, 128, 133, 144, 146, 147, 151, 158, 168, 170, 171, 176, 197, 207, 211, 212, 215, 216, 218, 219, 235, 238, 240, 251, 280, 295, 299, 405, 408, 418, 420, 421, 429, 435, 447, 455, 460, 491, 499],
+    "CLEVER FANFA SARMENTO JUNIOR (CLEVER.JUNIOR)": [82, 97],
+    "COLABORADOR 1": [8, 11, 15, 21, 23, 24, 35, 43, 47, 49, 66, 72, 83, 84, 85, 86, 87, 90, 95, 98, 108, 118, 131, 135, 136, 137, 139, 140, 141, 150, 161, 167, 175, 193, 200, 205, 214, 223, 237, 262, 270, 276, 289, 297, 412, 413, 419, 425, 445, 449, 451, 458, 465, 498],
+    "COLABORADOR 2": [46, 57, 132, 143, 145, 155, 187, 225, 226, 227, 245, 263, 272, 298, 414, 415, 430],
+    "ELIANA CATARINA BALOK CHAGAS (ELIANA.CHAGAS)": [7, 96, 210, 294],
+    "FELIPE KENNE DE OLIVEIRA (FELIPE.KENNE)": [13, 30, 71, 88, 116, 127, 164, 204, 232, 236, 250, 467, 468, 490],
+    "GABRIEL GODOI TEIXEIRA (GABRIEL.GODOI)": [25, 28, 29, 70, 73, 115, 119, 173, 180, 185, 192, 194, 208, 277, 296, 438, 497],
+    "HELLEN SCHIMIDT DIAS (HELLEN.DIAS)": [31, 45, 239],
+    "IGOR MARTINI RODRIGUES (IGOR.MARTINI)": [5, 110, 122, 162, 191, 279, 433],
+    "JULIA DA SILVA FLORES (JULIA.SFLORES)": [2, 4, 22, 26, 33, 36, 39, 40, 42, 51, 52, 55, 59, 60, 62, 63, 65, 79, 94, 99, 101, 102, 105, 107, 130, 148, 154, 159, 160, 163, 174, 177, 182, 186, 188, 189, 190, 199, 201, 202, 213, 220, 224, 229, 230, 231, 233, 241, 242, 256, 257, 261, 286, 293, 409, 411, 426, 432, 441, 442, 443, 452, 461],
+    "MAYARA AMARAL DORNELLES (MAYARA.DORNELLES)": [179],
+    "PEDRO ARTHUR ALVES DE FREITAS (PEDRO.FFREITAS)": [9, 14, 34, 44, 56, 64, 69, 100, 114, 152, 153, 156, 157, 165, 184, 196, 198, 258, 281, 283, 423, 466],
+    "PRISCILA DA SILVA LIMA (PRISCILA.LIMA)": [1, 20, 41, 138, 149, 166, 178, 206, 217, 248, 269, 284, 406, 410, 422],
 }
 
 # ---------------------------------------------------------------------------
