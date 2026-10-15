@@ -11,8 +11,8 @@ icone = image.open ("logo-corsan.png")
 # Configuracao da pagina
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Automacao Faturamento",
-    page_icon= icone,
+    page_title="Distribuição Ordens de Serviço",
+    page_icon= (icone),
     layout="wide",
     initial_sidebar_state="expanded",
 )
