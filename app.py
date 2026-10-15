@@ -269,6 +269,125 @@ COLABORADORES_ZONAS = {
 }
 
 # ---------------------------------------------------------------------------
+# MAPEAMENTO ZONA -> CIDADE
+# ---------------------------------------------------------------------------
+ZONA_CIDADE = {
+    1: "Agudo", 2: "Ajuricaba", 4: "Alecrim", 5: "Alegrete", 6: "Alpestre",
+    7: "Alvorada", 8: "Antonio Prado", 9: "Arambare", 10: "Aratiba",
+    11: "Arroio do Meio", 12: "Arroio dos Ratos", 13: "Arroio do Tigre",
+    14: "Arroio Grande", 15: "Arvorezinha", 17: "Barao de Cotegipe",
+    18: "Barracão", 19: "Barra do Ribeiro", 20: "Barros Cassal",
+    21: "Bento Goncalves", 22: "Boa Vista do Burica", 23: "Bom Jesus",
+    24: "Bom Retiro do Sul", 25: "Bossoroca", 26: "Braga", 27: "Butia",
+    28: "Caçapava do Sul", 29: "Cacequi", 30: "Cachoeira do Sul",
+    31: "Cachoeirinha", 32: "Cacique Doble", 33: "Caibaté", 34: "Camaqua",
+    35: "Cambara do Sul", 36: "Campina das Missões", 37: "Campinas do Sul",
+    38: "Campo Bom", 39: "Campo Novo", 40: "Nao-Me-Toque",
+    41: "Candelária", 42: "Cândido Godoi", 43: "Canela", 44: "Canguçu",
+    45: "Canoas", 46: "Capao da Canoa", 47: "Capela de Santana",
+    48: "Carazinho", 49: "Carlos Barbosa", 50: "Casca", 51: "Catuipe",
+    52: "Cerro Largo", 53: "Chapada", 54: "Charqueadas", 55: "Chiapeta",
+    56: "Chui", 57: "Cidreira", 58: "Ciriaco", 59: "Colorado",
+    60: "Condor", 61: "Constantina", 62: "Coronel Bicaco",
+    63: "Crissiumal", 64: "Cristal", 65: "Cruz Alta",
+    66: "Cruzeiro do Sul", 67: "David Canabarro", 68: "Dois Irmaos",
+    69: "Dom Feliciano", 70: "Dom Pedrito", 71: "Dona Francisca",
+    72: "Encantado", 73: "Encruzilhada do Sul", 74: "Erebango",
+    75: "Erechim", 76: "Erval Grande", 77: "Erval Seco",
+    78: "Esmeralda", 79: "Espumoso", 80: "Estacao",
+    81: "Estancia Velha", 82: "Esteio", 83: "Estrela",
+    84: "Farroupilha", 85: "Feliz", 86: "Flores da Cunha",
+    87: "Fontoura Xavier", 88: "Formigueiro", 89: "Frederico Westphalen",
+    90: "Garibaldi", 91: "Gaurama", 92: "General Camara",
+    93: "Getulio Vargas", 94: "Giruá", 95: "Gramado", 96: "Gravatai",
+    97: "Guaiba", 98: "Guapore", 99: "Guarani das Missões",
+    100: "Herval", 101: "Horizontina", 102: "Humaitá", 103: "Ibiaca",
+    104: "Ibiraiaras", 105: "Ibiruba", 106: "Igrejinha", 107: "Ijui",
+    108: "Ilopolis", 109: "Irai", 110: "Itaqui",
+    111: "Itatiba do Sul", 113: "Jacutinga", 114: "Jaguarao",
+    115: "Jaguari", 116: "Julio de Castilhos", 117: "Lagoa Vermelha",
+    118: "Lajeado", 119: "Lavras do Sul", 120: "Liberato Sauzano",
+    121: "Machadinho", 122: "Manoel Viana", 123: "Marau",
+    124: "Marcelino Ramos", 125: "Mariano Moro", 127: "Mata",
+    128: "Maximiliano de Almeida", 129: "Minas do Leao",
+    130: "Miraguaí", 131: "Montenegro", 132: "Mostardas",
+    133: "Nonoai", 135: "Nova Araca", 136: "Nova Bassano",
+    137: "Nova Brescia", 138: "Nova Palma", 139: "Nova Petropolis",
+    140: "Nova Prata", 141: "Nova Roma do Sul", 143: "Osorio",
+    144: "Paim Filho", 145: "Palmares do Sul",
+    146: "Palmeira das Missoes", 147: "Palmitinho", 148: "Panambi",
+    149: "Pantano Grande", 150: "Parai", 151: "Passo Fundo",
+    152: "Pedras Altas", 153: "Pedro Osorio", 154: "Pejucara",
+    155: "Balneario Pinhal", 156: "Pinheiro Machado", 157: "Piratini",
+    158: "Planalto", 159: "Porto Lucena", 160: "Porto Xavier",
+    161: "Putinga", 162: "Quarai", 163: "Redentora",
+    164: "Restinga Seca", 165: "Rio Grande", 166: "Rio Pardo",
+    167: "Roca Sales", 168: "Rodeio Bonito", 169: "Rolante",
+    170: "Ronda Alta", 171: "Rondinha", 173: "Rosario do Sul",
+    174: "Salto do Jacui", 175: "Salvador do Sul", 176: "Sananduva",
+    177: "Santa Barbara do Sul", 178: "Santa Cruz do Sul",
+    179: "Santa Maria", 180: "Santana da Boa Vista",
+    181: "Nova Santa Rita", 182: "Santa Rosa",
+    184: "Santa Vitoria do Palmar", 185: "Santiago",
+    186: "Santo Angelo", 187: "Santo Antonio da Patrulha",
+    188: "Santo Antonio das Missões", 189: "Santo Augusto",
+    190: "Santo Cristo", 191: "Sao Borja",
+    192: "Sao Francisco de Assis", 193: "Sao Francisco de Paula",
+    194: "São Gabriel", 195: "Sao Jeronimo",
+    196: "Sao Jose do Norte", 197: "Sao Jose do Ouro",
+    198: "Sao Lourenco do Sul", 199: "São Luiz Gonzaga",
+    200: "Sao Marcos", 201: "São Martinho", 202: "São Nicolau",
+    204: "Sao Pedro do Sul", 205: "Sao Sebastiao do Cai",
+    206: "Sao Sepe", 207: "Sao Valentim",
+    208: "Sao Vicente do Sul", 209: "Sapiranga",
+    210: "Sapucaia do Sul", 211: "Sarandi", 212: "Seberi",
+    213: "Selbach", 214: "Serafina Correa", 215: "Sertao",
+    216: "Severiano de Almeida", 217: "Sobradinho", 218: "Soledade",
+    219: "Tapejara", 220: "Tapera", 221: "Tapes", 222: "Taquara",
+    223: "Taquari", 224: "Tenente Portela", 225: "Terra de Areia",
+    226: "Torres", 227: "Tramandai", 228: "Tres Coroas",
+    229: "Três de Maio", 230: "Três Passos", 231: "Tucunduva",
+    232: "Tupancireta", 233: "Tuparendi", 235: "Vacaria",
+    236: "Venancio Aires", 237: "Veranopolis", 238: "Viadutos",
+    239: "Viamao", 240: "Vicente Dutra", 241: "Victor Graeff",
+    242: "Independência", 245: "Xangri-La", 248: "Silveira Martins",
+    249: "Portao", 250: "Faxinal do Soturno", 251: "Caicara",
+    256: "Mauricio Cardoso", 257: "Entre Ijuís", 258: "Cerrito",
+    261: "Campos Borges", 262: "Fagundes Varela",
+    263: "Capivari do Sul", 269: "Dilermando de Aguiar",
+    270: "Jaquirana", 272: "Imbe", 275: "Triunfo", 276: "Paverama",
+    277: "Aceguá", 279: "Maçambará", 280: "Entre Rios do Sul",
+    281: "Capão do Leão", 283: "Amaral Ferrador", 284: "Itaara",
+    285: "Parobe", 286: "Fortaleza dos Valos", 289: "Vila Flores",
+    292: "Morro Reuter", 293: "Sede Nova", 294: "Eldorado do Sul",
+    295: "Trindade do Sul", 296: "Nova Esperanca do Sul",
+    297: "Cotipora", 298: "Glorinha", 299: "Faxinalzinho",
+    311: "Nova Hartz", 403: "Riozinho", 404: "Cerro Grande do Sul",
+    405: "Água Santa", 406: "Ivora", 408: "Vista Alegre",
+    409: "Vista Gaucha", 410: "Lagoao",
+    411: "São Miguel das Missões", 412: "Ipe", 413: "Barao",
+    414: "Arroio do Sal", 415: "Tres Cachoeiras",
+    416: "Santa Maria do Herval", 418: "Sao Joao da Urtiga",
+    419: "Sao Jorge", 420: "Aurea", 421: "Caseiros",
+    422: "Boqueirao do Leao", 423: "Morro Redondo",
+    425: "Sao Jose do Herval", 426: "Barra Do Guarita",
+    429: "Taquarucu do Sul", 430: "Tavares", 432: "Alto Alegre",
+    433: "Barra do Quarai", 435: "Jaboticaba", 438: "Unistalda",
+    439: "Sentinela do Sul", 441: "Tiradentes do Sul",
+    442: "Inhacorá", 443: "Derrubadas", 444: "Barao do Triunfo",
+    445: "Sao Pedro da Serra", 446: "Sertao Santana",
+    447: "Santo Expedito do Sul", 449: "Campestre da Serra",
+    451: "Pinto Bandeira", 452: "São José do Inhacorá",
+    455: "Ametista do Sul", 458: "Sao Jose dos Ausentes",
+    460: "Pinheirinho do Vale", 461: "Bom Progresso",
+    463: "Mariana Pimentel", 465: "Marques de Souza",
+    466: "Chuvisca", 467: "Vila Nova do Sul", 468: "Passa Sete",
+    490: "Lagoa Bonita do Sul", 491: "Rio dos Indios",
+    497: "Santa Margarida do Sul", 498: "Itapuca",
+    499: "Muitos Capoes",
+}
+
+# ---------------------------------------------------------------------------
 # Credenciais ADM
 # ---------------------------------------------------------------------------
 ADMIN_USER = "admin"
@@ -615,14 +734,23 @@ else:
     if selected_colab and selected_colab in distribution:
         df_colab = distribution[selected_colab]
 
-        col_info1, col_info2, col_info3 = st.columns(3)
+        zonas_colab = COLABORADORES_ZONAS.get(selected_colab, [])
+        cidade_atrasada = "-"
+        if not df_colab.empty and "Zona Ligacao" in df_colab.columns and "Data Tramite" in df_colab.columns:
+            df_sorted = df_colab.sort_values("Data Tramite", ascending=True)
+            for _, row in df_sorted.iterrows():
+                zona = row.get("Zona Ligacao")
+                if zona and int(zona) in ZONA_CIDADE:
+                    cidade_atrasada = ZONA_CIDADE[int(zona)]
+                    break
+
+        col_info1, col_info2, col_info3, col_info4 = st.columns(4)
         with col_info1:
             st.markdown(render_metric_card(
                 "📄", str(len(df_colab)),
                 "OS atribuidas", "card-orange"
             ), unsafe_allow_html=True)
         with col_info2:
-            zonas_colab = COLABORADORES_ZONAS.get(selected_colab, [])
             st.markdown(render_metric_card(
                 "📍", str(len(zonas_colab)),
                 "Zonas responsavel", "card-cyan"
@@ -632,6 +760,11 @@ else:
             st.markdown(render_metric_card(
                 "📋", str(tipos_colab),
                 "Tipos de servico", "card-dark"
+            ), unsafe_allow_html=True)
+        with col_info4:
+            st.markdown(render_metric_card(
+                "🏙️", cidade_atrasada,
+                "Cidade mais atrasada", "card-red"
             ), unsafe_allow_html=True)
 
         st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
@@ -652,7 +785,7 @@ else:
             st.dataframe(
                 df_display,
                 use_container_width=True,
-                height=min(400, 38 + len(df_display) * 35),
+                height=min(38 + 4 * 35, 38 + len(df_display) * 35),
                 hide_index=True,
             )
 
