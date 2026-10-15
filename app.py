@@ -2,15 +2,17 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from datetime import datetime, date
+from PIL import Image
 import json
 import os
 
+icone = image.open ("logo-corsan.png")
 # ---------------------------------------------------------------------------
 # Configuracao da pagina
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="Automacao Faturamento",
-    page_icon="⚡",
+    page_icon= icone,
     layout="wide",
     initial_sidebar_state="expanded",
 )
