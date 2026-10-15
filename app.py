@@ -736,6 +736,7 @@ else:
 
         zonas_colab = COLABORADORES_ZONAS.get(selected_colab, [])
         cidade_atrasada = "-"
+        qtd_cidade_atrasada = 0
         if not df_colab.empty and "Zona Ligacao" in df_colab.columns and "Data Tramite" in df_colab.columns:
             df_sorted = df_colab.sort_values("Data Tramite", ascending=True)
             for _, row in df_sorted.iterrows():
@@ -743,6 +744,9 @@ else:
                 if zona and int(zona) in ZONA_CIDADE:
                     cidade_atrasada = ZONA_CIDADE[int(zona)]
                     break
+            if cidade_atrasada != "-":
+                zonas_da_cidade = [z for z, c in ZONA_CIDADE.items() if c == cidade_atrasada]
+                qtd_cidade_atrasada = len(df_colab[df_colab["Zona Ligacao"].isin(zonas_da_cidade)])
 
         col_info1, col_info2, col_info3, col_info4 = st.columns(4)
         with col_info1:
@@ -762,8 +766,12 @@ else:
                 "Tipos de servico", "card-dark"
             ), unsafe_allow_html=True)
         with col_info4:
+            if cidade_atrasada != "-":
+                cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
+            else:
+                cidade_html = "-"
             st.markdown(render_metric_card(
-                "🏙️", cidade_atrasada,
+                "🏙️", cidade_html,
                 "Cidade mais atrasada", "card-red"
             ), unsafe_allow_html=True)
 
