@@ -832,7 +832,84 @@ if st.session_state.is_admin:
     </div>
     """, unsafe_allow_html=True)
 
-    tab_absence, tab_audit = st.tabs(["Cobertura de Ausencias", "Historico / Auditoria"])
+    tab_overview, tab_absence, tab_audit = st.tabs(["Visao Geral", "Cobertura de Ausencias", "Historico / Auditoria"])
+
+    # -----------------------------------------------------------------------
+    # Tab: Visao Geral (Top cidades + Ranking colaboradores)
+    # -----------------------------------------------------------------------
+    with tab_overview:
+        col_chart1, col_chart2 = st.columns(2)
+
+        with col_chart1:
+            st.markdown('<div class="section-title">Top 15 Cidades com Mais OS Pendente</div>', unsafe_allow_html=True)
+            if "Zona Ligacao" in df.columns:
+                df_city = df.copy()
+                df_city["Cidade"] = df_city["Zona Ligacao"].map(ZONA_CIDADE)
+                city_counts = df_city["Cidade"].dropna().value_counts().head(15).sort_values(ascending=True)
+                if not city_counts.empty:
+                    fig_city = go.Figure(go.Bar(
+                        x=city_counts.values,
+                        y=city_counts.index,
+                        orientation="h",
+                        text=city_counts.values,
+                        textposition="outside",
+                        textfont=dict(color="white", size=12, family="Arial"),
+                        marker=dict(
+                            color=city_counts.values,
+                            colorscale=[[0, "#FF6B6B"], [1, "#FF4D4D"]],
+                        ),
+                    ))
+                    fig_city.update_layout(
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color="rgba(255,255,255,0.7)", size=12),
+                        margin=dict(l=0, r=40, t=10, b=10),
+                        height=450,
+                        xaxis=dict(visible=False),
+                        yaxis=dict(automargin=True),
+                        bargap=0.3,
+                    )
+                    st.plotly_chart(fig_city, use_container_width=True, config={"displayModeBar": False})
+                else:
+                    st.info("Sem dados de cidade disponíveis.")
+            else:
+                st.info("Coluna 'Zona Ligacao' nao encontrada.")
+
+        with col_chart2:
+            st.markdown('<div class="section-title">OS Pendente por Colaborador</div>', unsafe_allow_html=True)
+            if distribution:
+                colab_os = {name: len(d) for name, d in distribution.items() if not d.empty}
+                colab_os = dict(sorted(colab_os.items(), key=lambda x: x[1], reverse=False))
+                names = [n.split("(")[0].strip() for n in colab_os.keys()]
+                values = list(colab_os.values())
+                if values:
+                    fig_colab = go.Figure(go.Bar(
+                        x=values,
+                        y=names,
+                        orientation="h",
+                        text=values,
+                        textposition="outside",
+                        textfont=dict(color="white", size=12, family="Arial"),
+                        marker=dict(
+                            color=values,
+                            colorscale=[[0, "#00A87A"], [1, "#00C896"]],
+                        ),
+                    ))
+                    fig_colab.update_layout(
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color="rgba(255,255,255,0.7)", size=12),
+                        margin=dict(l=0, r=40, t=10, b=10),
+                        height=450,
+                        xaxis=dict(visible=False),
+                        yaxis=dict(automargin=True),
+                        bargap=0.3,
+                    )
+                    st.plotly_chart(fig_colab, use_container_width=True, config={"displayModeBar": False})
+                else:
+                    st.info("Nenhuma OS distribuída.")
+            else:
+                st.info("Nenhum colaborador configurado.")
 
     # -----------------------------------------------------------------------
     # Tab: Cobertura de Ausencias
