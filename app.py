@@ -367,7 +367,7 @@ def to_excel_download(df):
         df.to_excel(writer, index=False, sheet_name="OS")
         worksheet = writer.sheets["OS"]
         for i, col in enumerate(df.columns):
-            max_len = max(df[col].astype(str).map(len).max(), len(col)) + 2
+            max_len = max(df[col].astype(str).str.len().max(), len(col)) + 2
             max_len = min(max_len, 50)
             worksheet.set_column(i, i, max_len)
     return output.getvalue()
