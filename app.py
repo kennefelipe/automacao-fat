@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from io import BytesIO
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
+
+BR_TZ = timezone(timedelta(hours=-3))
 from PIL import Image
 import json
 import os
@@ -412,7 +414,7 @@ def save_audit_log(log):
 def add_audit_entry(colaborador, action="download"):
     log = load_audit_log()
     log.append({
-        "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "timestamp": datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M:%S"),
         "colaborador": colaborador,
         "action": action,
     })
@@ -571,7 +573,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown(f"""
     <div style="text-align: center; color: rgba(255,255,255,0.3); font-size: 11px; padding: 10px 0;">
-        Atualizado em {datetime.now().strftime("%d/%m/%Y %H:%M")}
+        Atualizado em {datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M")}
     </div>
     """, unsafe_allow_html=True)
 
@@ -803,7 +805,7 @@ else:
             downloaded = st.download_button(
                 label=f"Baixar Excel - {selected_colab}",
                 data=excel_data,
-                file_name=f"OS_{selected_colab.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                file_name=f"OS_{selected_colab.replace(' ', '_')}_{datetime.now(BR_TZ).strftime('%Y%m%d_%H%M')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="btn_download_colab",
                 use_container_width=True,
@@ -943,7 +945,7 @@ if st.session_state.is_admin:
                     config = {
                         "redirect_to": target_colab if redirect_mode == "Redirecionar para colega especifico" else None,
                         "distribute_all": redirect_mode == "Distribuir para todos",
-                        "registered_at": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                        "registered_at": datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M:%S"),
                     }
                     absence[absent_colab] = config
                     save_absence_config(absence)
