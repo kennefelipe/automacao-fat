@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 from io import BytesIO
 from datetime import datetime, date
 from PIL import Image
@@ -536,8 +537,41 @@ st.markdown('<div class="section-title">OS por Dia (Data Tramite)</div>', unsafe
 
 os_dia_df = os_por_dia.reset_index()
 os_dia_df.columns = ["Data", "Quantidade"]
+os_dia_df = os_dia_df[os_dia_df["Quantidade"] > 0]
 os_dia_df = os_dia_df.sort_values("Data")
-st.bar_chart(os_dia_df.set_index("Data"), color="#00D4AA", height=300)
+os_dia_df["Data_fmt"] = os_dia_df["Data"].apply(lambda d: d.strftime("%d/%m"))
+
+fig_os_dia = go.Figure(
+    go.Bar(
+        x=os_dia_df["Data_fmt"],
+        y=os_dia_df["Quantidade"],
+        marker=dict(
+            color="#00D4AA",
+            cornerradius=4,
+        ),
+        text=os_dia_df["Quantidade"],
+        textposition="outside",
+        textfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+    )
+)
+fig_os_dia.update_layout(
+    plot_bgcolor="rgba(0,0,0,0)",
+    paper_bgcolor="rgba(0,0,0,0)",
+    margin=dict(l=0, r=0, t=10, b=0),
+    height=300,
+    xaxis=dict(
+        color="rgba(255,255,255,0.6)",
+        tickfont=dict(size=12),
+        showgrid=False,
+        showline=False,
+    ),
+    yaxis=dict(
+        visible=False,
+        showgrid=False,
+    ),
+    bargap=0.3,
+)
+st.plotly_chart(fig_os_dia, use_container_width=True, config={"displayModeBar": False})
 
 st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
