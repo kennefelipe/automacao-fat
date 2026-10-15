@@ -530,86 +530,111 @@ with col4:
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Quantidade por tipo de servico
+# Quantidade por tipo de servico - Grafico de barras horizontal amarelo
 # ---------------------------------------------------------------------------
-col_chart, col_download = st.columns([3, 2])
+st.markdown('<div class="section-title">Quantidade por Tipo de Servico</div>', unsafe_allow_html=True)
 
-with col_chart:
-    st.markdown('<div class="section-title">Quantidade por Tipo de Servico</div>', unsafe_allow_html=True)
-    tipo_counts = df["Tipo de Solicitação"].value_counts()
-    for tipo, count in tipo_counts.items():
-        pct = (count / total_os) * 100
-        st.markdown(f"""
-        <div class="service-bar">
-            <span class="service-name">{tipo}</span>
-            <span class="service-count">{count} <span style="font-size:11px; color: rgba(255,255,255,0.4);">({pct:.1f}%)</span></span>
+tipo_counts = df["Tipo de Solicitação"].value_counts()
+max_count = tipo_counts.max() if not tipo_counts.empty else 1
+
+for tipo, count in tipo_counts.items():
+    pct = (count / total_os) * 100
+    bar_width = (count / max_count) * 100
+    st.markdown(f"""
+    <div style="margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;">{tipo}</span>
+            <span style="color: #FFB347; font-size: 14px; font-weight: 700;">{count} <span style="font-size:11px; color: rgba(255,255,255,0.4);">({pct:.1f}%)</span></span>
         </div>
-        """, unsafe_allow_html=True)
+        <div style="background: rgba(255,255,255,0.06); border-radius: 6px; height: 28px; overflow: hidden;">
+            <div style="background: linear-gradient(90deg, #FF9A2E, #FFB347); width: {bar_width}%;
+                        height: 100%; border-radius: 6px; transition: width 0.5s ease;"></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-with col_download:
-    st.markdown('<div class="section-title">Baixar Relatorio por Colaborador</div>', unsafe_allow_html=True)
-
-    if not COLABORADORES_ZONAS:
-        st.info("Configure os colaboradores e suas zonas no codigo para habilitar a distribuicao.")
-    else:
-        colab_names = list(COLABORADORES_ZONAS.keys())
-        selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select")
-
-        if selected_colab and selected_colab in distribution:
-            df_colab = distribution[selected_colab]
-            st.markdown(f"""
-            <div style="background: rgba(19,29,53,0.6); border-radius: 8px; padding: 12px;
-                        border: 1px solid rgba(255,255,255,0.06); margin: 8px 0;">
-                <span style="color: rgba(255,255,255,0.5); font-size: 12px;">OS atribuidas:</span>
-                <span style="color: #00C896; font-size: 20px; font-weight: 700; margin-left: 8px;">{len(df_colab)}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            if not df_colab.empty:
-                excel_data = to_excel_download(df_colab)
-                downloaded = st.download_button(
-                    label=f"Baixar Excel - {selected_colab}",
-                    data=excel_data,
-                    file_name=f"OS_{selected_colab.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="btn_download_colab",
-                    use_container_width=True,
-                )
-                if downloaded:
-                    add_audit_entry(selected_colab, "download")
-            else:
-                st.info("Nenhuma OS atribuida para este colaborador.")
-        elif selected_colab:
-            absence = load_absence_config()
-            if selected_colab in absence:
-                st.warning(f"{selected_colab} esta ausente. OS redistribuidas.")
+st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Distribuicao por colaborador (resumo)
+# Detalhamento por colaborador - Selecao + Tabela + Download
 # ---------------------------------------------------------------------------
-if distribution:
-    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
-    st.markdown('<div class="section-title">Distribuicao por Colaborador</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">Detalhamento por Colaborador</div>', unsafe_allow_html=True)
 
-    cols_per_row = 5
-    colab_items = [(k, v) for k, v in distribution.items()]
+if not COLABORADORES_ZONAS:
+    st.info("Configure os colaboradores e suas zonas no codigo para habilitar a distribuicao.")
+else:
+    colab_names = list(COLABORADORES_ZONAS.keys())
+    selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select")
 
-    for i in range(0, len(colab_items), cols_per_row):
-        cols = st.columns(cols_per_row)
-        for j, col in enumerate(cols):
-            idx = i + j
-            if idx < len(colab_items):
-                name, df_c = colab_items[idx]
-                with col:
-                    st.markdown(render_metric_card(
-                        "📄", str(len(df_c)),
-                        name, "card-dark"
-                    ), unsafe_allow_html=True)
+    if selected_colab and selected_colab in distribution:
+        df_colab = distribution[selected_colab]
+
+        col_info1, col_info2, col_info3 = st.columns(3)
+        with col_info1:
+            st.markdown(render_metric_card(
+                "📄", str(len(df_colab)),
+                "OS atribuidas", "card-orange"
+            ), unsafe_allow_html=True)
+        with col_info2:
+            zonas_colab = COLABORADORES_ZONAS.get(selected_colab, [])
+            st.markdown(render_metric_card(
+                "📍", str(len(zonas_colab)),
+                "Zonas responsavel", "card-cyan"
+            ), unsafe_allow_html=True)
+        with col_info3:
+            tipos_colab = df_colab["Tipo de Solicitação"].nunique() if not df_colab.empty else 0
+            st.markdown(render_metric_card(
+                "📋", str(tipos_colab),
+                "Tipos de servico", "card-dark"
+            ), unsafe_allow_html=True)
+
+        st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+        if not df_colab.empty:
+            display_cols = [
+                "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
+                "Tipo de Solicitação", "Data Tramite", "Data Pedido",
+            ]
+            available_cols = [c for c in display_cols if c in df_colab.columns]
+            df_display = df_colab[available_cols].copy()
+            df_display = df_display.sort_values("Data Tramite", ascending=True)
+
+            for col in ["Data Tramite", "Data Pedido"]:
+                if col in df_display.columns:
+                    df_display[col] = df_display[col].dt.strftime("%d/%m/%Y %H:%M")
+
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                height=min(400, 38 + len(df_display) * 35),
+                hide_index=True,
+            )
+
+            st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
+
+            excel_data = to_excel_download(df_colab)
+            downloaded = st.download_button(
+                label=f"Baixar Excel - {selected_colab}",
+                data=excel_data,
+                file_name=f"OS_{selected_colab.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="btn_download_colab",
+                use_container_width=True,
+            )
+            if downloaded:
+                add_audit_entry(selected_colab, "download")
+        else:
+            st.info("Nenhuma OS atribuida para este colaborador.")
+    elif selected_colab:
+        absence = load_absence_config()
+        if selected_colab in absence:
+            st.warning(f"{selected_colab} esta ausente. OS redistribuidas.")
+
+st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # OS por dia (grafico)
 # ---------------------------------------------------------------------------
-st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 st.markdown('<div class="section-title">OS por Dia (Data Tramite)</div>', unsafe_allow_html=True)
 
 os_dia_df = os_por_dia.reset_index()
