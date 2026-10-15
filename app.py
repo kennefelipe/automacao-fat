@@ -6,13 +6,13 @@ from PIL import Image
 import json
 import os
 
-icone = image.open ("logo-corsan.png")
+icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan.png"))
 # ---------------------------------------------------------------------------
 # Configuracao da pagina
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Distribuição Ordens de Serviço",
-    page_icon= (icone),
+    page_title="Distribuicao Ordens de Servico",
+    page_icon=icone,
     layout="wide",
     initial_sidebar_state="expanded",
 )
