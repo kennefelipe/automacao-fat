@@ -530,6 +530,18 @@ with col4:
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
+# OS por dia (grafico de barras vertical verde-agua)
+# ---------------------------------------------------------------------------
+st.markdown('<div class="section-title">OS por Dia (Data Tramite)</div>', unsafe_allow_html=True)
+
+os_dia_df = os_por_dia.reset_index()
+os_dia_df.columns = ["Data", "Quantidade"]
+os_dia_df = os_dia_df.sort_values("Data")
+st.bar_chart(os_dia_df.set_index("Data"), color="#00D4AA", height=300)
+
+st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
 # Quantidade por tipo de servico - Grafico de barras horizontal amarelo
 # ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">Quantidade por Tipo de Servico</div>', unsafe_allow_html=True)
@@ -630,17 +642,6 @@ else:
         if selected_colab in absence:
             st.warning(f"{selected_colab} esta ausente. OS redistribuidas.")
 
-st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
-
-# ---------------------------------------------------------------------------
-# OS por dia (grafico)
-# ---------------------------------------------------------------------------
-st.markdown('<div class="section-title">OS por Dia (Data Tramite)</div>', unsafe_allow_html=True)
-
-os_dia_df = os_por_dia.reset_index()
-os_dia_df.columns = ["Data", "Quantidade"]
-os_dia_df = os_dia_df.sort_values("Data")
-st.bar_chart(os_dia_df.set_index("Data"), color="#00C896", height=300)
 
 
 # ===========================================================================
