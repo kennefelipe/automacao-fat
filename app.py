@@ -674,7 +674,7 @@ st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 # OS por dia (grafico de barras vertical verde-agua)
 # ---------------------------------------------------------------------------
-st.markdown('<div class="section-title">Acompanhamento pelo Tramite)</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">Acompanhamento pelo Tramite</div>', unsafe_allow_html=True)
 
 os_dia_df = os_por_dia.reset_index()
 os_dia_df.columns = ["Data", "Quantidade"]
