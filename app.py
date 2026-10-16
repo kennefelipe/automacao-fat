@@ -774,18 +774,18 @@ else:
         with col_info1:
             st.markdown(render_metric_card(
                 "📄", str(len(df_colab)),
-                "OS atribuidas", "card-orange"
+                "OS's atribuidas", "card-orange"
             ), unsafe_allow_html=True)
         with col_info2:
             st.markdown(render_metric_card(
                 "📍", str(len(zonas_colab)),
-                "Zonas responsavel", "card-cyan"
+                "Zonas responsável", "card-cyan"
             ), unsafe_allow_html=True)
         with col_info3:
             tipos_colab = df_colab["Tipo de Solicitação"].nunique() if not df_colab.empty else 0
             st.markdown(render_metric_card(
                 "📋", str(tipos_colab),
-                "Tipos de servico", "card-dark"
+                "Tipos de serviços", "card-white"
             ), unsafe_allow_html=True)
         with col_info4:
             if cidade_atrasada != "-":
@@ -837,7 +837,7 @@ else:
     elif selected_colab:
         absence = load_absence_config()
         if selected_colab in absence:
-            st.warning(f"{selected_colab} esta ausente. OS redistribuidas.")
+            st.warning(f"{selected_colab} esta ausente. OS's redistribuidas.")
 
 
 
