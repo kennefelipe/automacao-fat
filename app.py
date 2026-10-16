@@ -777,9 +777,13 @@ else:
                 "OS's atribuidas", "card-orange"
             ), unsafe_allow_html=True)
         with col_info2:
+            if cidade_atrasada != "-":
+                cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
+            else:
+                cidade_html = "-"
             st.markdown(render_metric_card(
-                "📍", str(len(zonas_colab)),
-                "Zonas responsável", "card-cyan"
+                "🚨", cidade_html,
+                "Cidade mais atrasada", "card-red"
             ), unsafe_allow_html=True)
         with col_info3:
             tipos_colab = df_colab["Tipo de Solicitação"].nunique() if not df_colab.empty else 0
@@ -788,13 +792,9 @@ else:
                 "Tipos de serviços", "card-white"
             ), unsafe_allow_html=True)
         with col_info4:
-            if cidade_atrasada != "-":
-                cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
-            else:
-                cidade_html = "-"
             st.markdown(render_metric_card(
-                "🏙️", cidade_html,
-                "Cidade mais atrasada", "card-red"
+                "📍", str(len(zonas_colab)),
+                "Zonas responsável", "card-cyan"
             ), unsafe_allow_html=True)
 
         st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
