@@ -516,25 +516,45 @@ if "df_loaded" not in st.session_state:
     st.session_state.df_loaded = None
 
 # ---------------------------------------------------------------------------
+# Logo (carregada uma vez e cacheada)
+# ---------------------------------------------------------------------------
+LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-faturamento-opcao1-branco.png")
+
+@st.cache_resource
+def load_logo(path: str):
+    """Carrega a logo e recorta o espaço transparente em volta."""
+    try:
+        img = Image.open(path).convert("RGBA")
+        bbox = img.getchannel("A").getbbox()  # área não transparente
+        if bbox:
+            img = img.crop(bbox)
+        return img
+    except Exception:
+        return None
+
+# ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("""
-    <div style="text-align: center; padding: 20px 0 10px 0;">
-        <div style="font-size: 28px; font-weight: 800; color: #00C896;">
-            FATURAMENTO
+    logo = load_logo(LOGO_PATH)
+    if logo is not None:
+        st.markdown("<div style='padding: 20px 0 10px 0;'></div>", unsafe_allow_html=True)
+        st.image(logo, use_container_width=True)
+    else:
+        # Fallback caso o arquivo nao seja encontrado
+        st.markdown("""
+        <div style="text-align: center; padding: 20px 0 10px 0;">
+            <div style="font-size: 28px; font-weight: 800; color: #00C896;">
+                FATURAMENTO
+            </div>
         </div>
-        <div style="font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px;">
-            AUTOMACAO
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
 
     # Login ADM
     if not st.session_state.is_admin:
-        with st.expander("Login ADM", expanded=False):
+        with st.expander("Login", expanded=False):
             user_input = st.text_input("Usuario", key="adm_user")
             pass_input = st.text_input("Senha", type="password", key="adm_pass")
             if st.button("Entrar", key="btn_login", use_container_width=True):
@@ -555,7 +575,7 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("---")
-
+    
     # Upload do arquivo
     st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Carregar Extracao SCAE</p>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
