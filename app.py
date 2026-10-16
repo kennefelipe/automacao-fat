@@ -630,11 +630,24 @@ distribution = distribute_os(df)
 # ---------------------------------------------------------------------------
 # Header
 # ---------------------------------------------------------------------------
+st.markdown("""
+<style>
+    /* sobe o conteudo para o topo da tela */
+    .block-container {
+        padding-top: 1.5rem;
+    }
+    /* centraliza a logo do header */
+    .st-key-header_logo {
+        align-items: center;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 logo = load_logo(LOGO_PATH)
 
-if logo is not None:
-    st.image(logo, width=480)
-
+with st.container(key="header_logo"):
+    if logo is not None:
+        st.image(logo, width=400)
 
 st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
