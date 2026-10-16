@@ -789,12 +789,12 @@ else:
             tipos_colab = df_colab["Tipo de Solicitação"].nunique() if not df_colab.empty else 0
             st.markdown(render_metric_card(
                 "📋", str(tipos_colab),
-                "Tipos de serviços", "card-white"
+                "Tipos de serviços", "card-cyan"
             ), unsafe_allow_html=True)
         with col_info4:
             st.markdown(render_metric_card(
                 "📍", str(len(zonas_colab)),
-                "Zonas responsável", "card-cyan"
+                "Zonas responsável", "card-white"
             ), unsafe_allow_html=True)
 
         st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
