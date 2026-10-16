@@ -539,7 +539,7 @@ with st.sidebar:
     logo = load_logo(LOGO_PATH)
     if logo is not None:
         st.markdown("<div style='padding: 20px 0 10px 0;'></div>", unsafe_allow_html=True)
-        st.image(logo, use_container_width=50)
+        st.image(logo, width=150)
     else:
         # Fallback caso o arquivo nao seja encontrado
         st.markdown("""
