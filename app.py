@@ -14,7 +14,7 @@ icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan.png"))
 # Configuracao da pagina
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Distribuicao OS's",
+    page_title="Distribuição OS's",
     page_icon=icone,
     layout="wide",
     initial_sidebar_state="expanded",
@@ -539,7 +539,7 @@ with st.sidebar:
     logo = load_logo(LOGO_PATH)
     if logo is not None:
         st.markdown("<div style='padding: 20px 0 10px 0;'></div>", unsafe_allow_html=True)
-        st.image(logo, use_container_width=True)
+        st.image(logo, use_container_width=180)
     else:
         # Fallback caso o arquivo nao seja encontrado
         st.markdown("""
