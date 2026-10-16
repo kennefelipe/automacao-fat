@@ -633,13 +633,8 @@ distribution = distribute_os(df)
 logo = load_logo(LOGO_PATH)
 
 if logo is not None:
-    st.image(logo, width=240)
+    st.image(logo, width=350)
 
-st.markdown("""
-<div class="main-header">
-    <h1>Distribuicao de OS</h1>
-</div>
-""", unsafe_allow_html=True)
 
 st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
