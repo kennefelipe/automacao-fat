@@ -647,7 +647,7 @@ logo = load_logo(LOGO_PATH)
 
 with st.container(key="header_logo"):
     if logo is not None:
-        st.image(logo, width=400)
+        st.image(logo, width=700)
 
 st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
