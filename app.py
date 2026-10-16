@@ -577,7 +577,7 @@ with st.sidebar:
     st.markdown("---")
     
     # Upload do arquivo
-    st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Carregar Extracao SCAE</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Carregar Extração</p>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
 
     if uploaded_file is not None:
@@ -609,7 +609,7 @@ if df is None:
         <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.3;">📂</div>
         <h2 style="color: rgba(255,255,255,0.6); font-weight: 400;">Nenhum arquivo carregado</h2>
         <p style="color: rgba(255,255,255,0.3); max-width: 400px;">
-            Faca o upload da extracao do SCAE na barra lateral para iniciar a distribuicao das ordens de servico.
+            Faça o upload da extração do SCAE na barra lateral para iniciar a distribuição das ordens de serviço.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -647,20 +647,20 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown(render_metric_card(
         "📋", f"{total_os:,}".replace(",", "."),
-        "Total de OS em aberto", "card-orange"
+        "Total de OS's em aberto", "card-cyan" 
     ), unsafe_allow_html=True)
 
 with col2:
     dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
     st.markdown(render_metric_card(
         "📅", dia_fmt,
-        f"Dia mais atrasado ({qtd_dia_antigo} OS)", "card-cyan"
+        f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red"
     ), unsafe_allow_html=True)
 
 with col3:
     st.markdown(render_metric_card(
         "⏳", f"{dias_atraso}",
-        "Dias de atraso", "card-red"
+        "Dias de atraso", "card-orange" 
     ), unsafe_allow_html=True)
 
 with col4:
@@ -674,7 +674,7 @@ st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 # OS por dia (grafico de barras vertical verde-agua)
 # ---------------------------------------------------------------------------
-st.markdown('<div class="section-title">OS por Dia (Data Tramite)</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">Acompanhamento pelo Tramite)</div>', unsafe_allow_html=True)
 
 os_dia_df = os_por_dia.reset_index()
 os_dia_df.columns = ["Data", "Quantidade"]
@@ -719,7 +719,7 @@ st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 # Quantidade por tipo de servico - Grafico de barras horizontal amarelo
 # ---------------------------------------------------------------------------
-st.markdown('<div class="section-title">Quantidade por Tipo de Servico</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">Distribuição por Tipo de Serviço</div>', unsafe_allow_html=True)
 
 tipo_counts = df["Tipo de Solicitação"].value_counts()
 max_count = tipo_counts.max() if not tipo_counts.empty else 1
