@@ -539,7 +539,7 @@ with st.sidebar:
     logo = load_logo(LOGO_PATH)
     if logo is not None:
         st.markdown("<div style='padding: 20px 0 10px 0;'></div>", unsafe_allow_html=True)
-        st.image(logo, width=340)
+        st.image(logo, width=350)
     else:
         # Fallback caso o arquivo nao seja encontrado
         st.markdown("""
@@ -677,7 +677,7 @@ st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 st.markdown('<div class="section-title">Acompanhamento pelo Tramite</div>', unsafe_allow_html=True)
 
 os_dia_df = os_por_dia.reset_index()
-os_dia_df.columns = ["Data"]
+os_dia_df.columns = ["Data", "Quantidade"]
 os_dia_df = os_dia_df[os_dia_df["Quantidade"] > 0]
 os_dia_df = os_dia_df.sort_values("Data")
 os_dia_df["Data_fmt"] = os_dia_df["Data"].apply(lambda d: d.strftime("%d/%m"))
