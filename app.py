@@ -537,19 +537,34 @@ def load_logo(path: str):
 with st.sidebar:
     logo = load_logo(ICONE_FAT)
     if logo is not None:
-        st.markdown("<div style='padding: 20px 0 10px 0;'></div>", unsafe_allow_html=True)
         st.markdown(
             """
             <style>
+            /* sobe o conteúdo da sidebar */
+            [data-testid="stSidebarHeader"] {
+                height: 2.5rem;
+                min-height: 0;
+                padding: 0;
+            }
+            [data-testid="stSidebarUserContent"] {
+                padding-top: 0 !important;
+            }
+
+            /* centraliza e controla o tamanho da logo */
             [data-testid="stSidebar"] [data-testid="stImage"] {
                 display: flex;
                 justify-content: center;
+            }
+            [data-testid="stSidebar"] [data-testid="stImage"] img {
+                width: 170px !important;   /* ajuste o tamanho aqui */
+                max-width: 100%;
+                height: auto;
             }
             </style>
             """,
             unsafe_allow_html=True,
         )
-        st.image(logo, width=250)
+        st.image(logo)
     else:
         # Fallback caso o arquivo nao seja encontrado
         st.markdown("""
