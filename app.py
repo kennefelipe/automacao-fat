@@ -542,7 +542,7 @@ with st.sidebar:
             <style>
             /* sobe o conteúdo da sidebar */
             [data-testid="stSidebarHeader"] {
-                height: 1.5rem;
+                height: 0.2rem;
                 min-height: 0;
                 padding: 0;
             }
