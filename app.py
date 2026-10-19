@@ -625,16 +625,18 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Seletor de colaborador
-    st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Colaborador</p>', unsafe_allow_html=True)
-    if COLABORADORES_ZONAS:
+        # Dados carregados (usado para decidir o que aparece na sidebar)
+    df_for_types = st.session_state.get("df_loaded")
+
+    # Seletor de colaborador (so aparece depois do upload)
+    if df_for_types is not None and COLABORADORES_ZONAS:
+        st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Colaborador</p>', unsafe_allow_html=True)
         colab_names = ["Todos"] + sorted(COLABORADORES_ZONAS.keys())
         selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select", label_visibility="collapsed")
     else:
         selected_colab = "Todos"
 
     # Filtro por tipo de servico
-    df_for_types = st.session_state.get("df_loaded")
     if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
         tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
         st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px;">Tipo de Serviço</p>', unsafe_allow_html=True)
@@ -646,15 +648,18 @@ with st.sidebar:
 
     # Upload do arquivo
     st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Carregar Extração</p>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
+        uploaded_file = st.file_uploader("", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
 
     if uploaded_file is not None:
         try:
             df = pd.read_excel(uploaded_file)
             df["Data Tramite"] = pd.to_datetime(df["Data Tramite"], errors="coerce")
             df["Data Pedido"] = pd.to_datetime(df["Data Pedido"], errors="coerce")
+            primeira_carga = st.session_state.df_loaded is None
             st.session_state.df_loaded = df
             st.success(f"{len(df)} registros carregados")
+            if primeira_carga:
+                st.rerun()
         except Exception as e:
             st.error(f"Erro ao carregar: {e}")
 
