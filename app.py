@@ -617,8 +617,6 @@ if df is None:
 # ---------------------------------------------------------------------------
 # Calculos principais
 # ---------------------------------------------------------------------------
-total_colaboradores_ativos = len([c for c in COLABORADORES_ZONAS if c not in load_absence_config()])
-
 distribution = distribute_os(df)
 
 # ---------------------------------------------------------------------------
@@ -632,16 +630,25 @@ if logo is not None:
 st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Seletor de colaborador
+# Reservar espaco visual para os cards (preenchido depois do seletor)
+# ---------------------------------------------------------------------------
+cards_container = st.container()
+
+st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Seletor de colaborador (abaixo dos cards)
 # ---------------------------------------------------------------------------
 if COLABORADORES_ZONAS:
-    colab_names = list(COLABORADORES_ZONAS.keys())
+    colab_names = ["Todos"] + sorted(COLABORADORES_ZONAS.keys())
     selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select")
 else:
-    selected_colab = None
+    selected_colab = "Todos"
+
+is_todos = (selected_colab == "Todos")
 
 # Dados filtrados pelo colaborador selecionado
-if selected_colab and selected_colab in distribution:
+if not is_todos and selected_colab in distribution:
     df_colab = distribution[selected_colab]
     df_view = df_colab if not df_colab.empty else df
 else:
@@ -652,19 +659,17 @@ total_os = len(df_view)
 os_por_dia = df_view.groupby(df_view["Data Tramite"].dt.date).size()
 dia_mais_antigo = os_por_dia.index.min() if not os_por_dia.empty else date.today()
 qtd_dia_antigo = os_por_dia.get(dia_mais_antigo, 0)
-dias_atraso = (date.today() - dia_mais_antigo).days if dia_mais_antigo else 0
-
-st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Cards de metricas (filtrados pelo colaborador)
+# Cards de metricas (preencher o container reservado acima)
 # ---------------------------------------------------------------------------
-if selected_colab and selected_colab in distribution and not df_colab.empty:
-    zonas_colab = COLABORADORES_ZONAS.get(selected_colab, [])
+with cards_container:
+    # Calcular cidade mais atrasada
+    df_cidade_src = df if is_todos else df_colab
     cidade_atrasada = "-"
     qtd_cidade_atrasada = 0
-    if "Zona Ligacao" in df_colab.columns and "Data Tramite" in df_colab.columns:
-        df_sorted = df_colab.sort_values("Data Tramite", ascending=True)
+    if not df_cidade_src.empty and "Zona Ligacao" in df_cidade_src.columns and "Data Tramite" in df_cidade_src.columns:
+        df_sorted = df_cidade_src.sort_values("Data Tramite", ascending=True)
         for _, row in df_sorted.iterrows():
             zona = row.get("Zona Ligacao")
             if zona and int(zona) in ZONA_CIDADE:
@@ -672,41 +677,45 @@ if selected_colab and selected_colab in distribution and not df_colab.empty:
                 break
         if cidade_atrasada != "-":
             zonas_da_cidade = [z for z, c in ZONA_CIDADE.items() if c == cidade_atrasada]
-            qtd_cidade_atrasada = len(df_colab[df_colab["Zona Ligacao"].isin(zonas_da_cidade)])
+            qtd_cidade_atrasada = len(df_cidade_src[df_cidade_src["Zona Ligacao"].isin(zonas_da_cidade)])
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown(render_metric_card(
-            "\U0001f4cb", f"{total_os:,}".replace(",", "."),
-            "OS's atribuidas", "card-cyan"
-        ), unsafe_allow_html=True)
-    with col2:
-        dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
-        st.markdown(render_metric_card(
-            "\U0001f4c5", dia_fmt,
-            f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red"
-        ), unsafe_allow_html=True)
-    with col3:
-        tipos_colab = df_colab["Tipo de Solicitação"].nunique() if not df_colab.empty else 0
-        st.markdown(render_metric_card(
-            "\U0001f4cb", str(tipos_colab),
-            "Tipos de serviços", "card-orange"
-        ), unsafe_allow_html=True)
-    with col4:
-        if cidade_atrasada != "-":
-            cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
-        else:
-            cidade_html = "-"
-        st.markdown(render_metric_card(
-            "\U0001f3d9️", cidade_html,
-            "Cidade mais atrasada", "card-white"
-        ), unsafe_allow_html=True)
-elif selected_colab and selected_colab in distribution and df_colab.empty:
-    st.info("Nenhuma OS atribuida para este colaborador.")
-elif selected_colab:
-    absence = load_absence_config()
-    if selected_colab in absence:
-        st.warning(f"{selected_colab} esta ausente. OS's redistribuidas.")
+    tipos_count = df_view["Tipo de Solicitação"].nunique() if not df_view.empty else 0
+
+    show_cards = is_todos or (not is_todos and selected_colab in distribution and not df_colab.empty)
+
+    if show_cards:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown(render_metric_card(
+                "\U0001f4cb", f"{total_os:,}".replace(",", "."),
+                "OS's atribuidas", "card-cyan"
+            ), unsafe_allow_html=True)
+        with col2:
+            dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
+            st.markdown(render_metric_card(
+                "\U0001f4c5", dia_fmt,
+                f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red"
+            ), unsafe_allow_html=True)
+        with col3:
+            st.markdown(render_metric_card(
+                "\U0001f4cb", str(tipos_count),
+                "Tipos de serviços", "card-orange"
+            ), unsafe_allow_html=True)
+        with col4:
+            if cidade_atrasada != "-":
+                cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
+            else:
+                cidade_html = "-"
+            st.markdown(render_metric_card(
+                "\U0001f3d9️", cidade_html,
+                "Cidade mais atrasada", "card-white"
+            ), unsafe_allow_html=True)
+    elif not is_todos and selected_colab in distribution and df_colab.empty:
+        st.info("Nenhuma OS atribuida para este colaborador.")
+    elif not is_todos:
+        absence = load_absence_config()
+        if selected_colab in absence:
+            st.warning(f"{selected_colab} esta ausente. OS's redistribuidas.")
 
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
@@ -783,9 +792,9 @@ for tipo, count in tipo_counts.items():
 st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Tabela e Download do colaborador
+# Tabela e Download do colaborador (so aparece quando um nome eh selecionado)
 # ---------------------------------------------------------------------------
-if selected_colab and selected_colab in distribution and not df_colab.empty:
+if not is_todos and selected_colab in distribution and not df_colab.empty:
     st.markdown('<div class="section-title">Detalhamento por Colaborador</div>', unsafe_allow_html=True)
 
     display_cols = [
