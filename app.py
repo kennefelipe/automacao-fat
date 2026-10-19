@@ -517,7 +517,7 @@ if "df_loaded" not in st.session_state:
 # Logo (carregada uma vez e cacheada)
 # ---------------------------------------------------------------------------
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-faturamento-opcao1-branco.png")
-ICONE_FAT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icone-faturamento-opcao1-branco.png")
+ICONE_FAT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-sidebar.png")
 
 @st.cache_resource
 def load_logo(path: str):
