@@ -625,7 +625,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-        # Dados carregados (usado para decidir o que aparece na sidebar)
+            # Dados carregados (usado para decidir o que aparece na sidebar)
     df_for_types = st.session_state.get("df_loaded")
 
     # Seletor de colaborador (so aparece depois do upload)
@@ -644,7 +644,8 @@ with st.sidebar:
     else:
         selected_tipo = "Todos"
 
-    st.markdown("---")
+    if df_for_types is not None:
+        st.markdown("---")
 
         # Upload do arquivo
     st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Carregar Extração</p>', unsafe_allow_html=True)
