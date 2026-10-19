@@ -617,11 +617,6 @@ if df is None:
 # ---------------------------------------------------------------------------
 # Calculos principais
 # ---------------------------------------------------------------------------
-total_os = len(df)
-os_por_dia = df.groupby(df["Data Tramite"].dt.date).size()
-dia_mais_antigo = os_por_dia.index.min() if not os_por_dia.empty else date.today()
-qtd_dia_antigo = os_por_dia.get(dia_mais_antigo, 0)
-dias_atraso = (date.today() - dia_mais_antigo).days if dia_mais_antigo else 0
 total_colaboradores_ativos = len([c for c in COLABORADORES_ZONAS if c not in load_absence_config()])
 
 distribution = distribute_os(df)
@@ -637,39 +632,86 @@ if logo is not None:
 st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Metricas principais
+# Seletor de colaborador
 # ---------------------------------------------------------------------------
-col1, col2, col3, col4 = st.columns(4)
+if COLABORADORES_ZONAS:
+    colab_names = list(COLABORADORES_ZONAS.keys())
+    selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select")
+else:
+    selected_colab = None
 
-with col1:
-    st.markdown(render_metric_card(
-        "📋", f"{total_os:,}".replace(",", "."),
-        "Total de OS's em aberto", "card-cyan" 
-    ), unsafe_allow_html=True)
+# Dados filtrados pelo colaborador selecionado
+if selected_colab and selected_colab in distribution:
+    df_colab = distribution[selected_colab]
+    df_view = df_colab if not df_colab.empty else df
+else:
+    df_colab = pd.DataFrame()
+    df_view = df
 
-with col2:
-    dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
-    st.markdown(render_metric_card(
-        "📅", dia_fmt,
-        f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red"
-    ), unsafe_allow_html=True)
+total_os = len(df_view)
+os_por_dia = df_view.groupby(df_view["Data Tramite"].dt.date).size()
+dia_mais_antigo = os_por_dia.index.min() if not os_por_dia.empty else date.today()
+qtd_dia_antigo = os_por_dia.get(dia_mais_antigo, 0)
+dias_atraso = (date.today() - dia_mais_antigo).days if dia_mais_antigo else 0
 
-with col3:
-    st.markdown(render_metric_card(
-        "⏳", f"{dias_atraso}",
-        "Dias de atraso", "card-orange" 
-    ), unsafe_allow_html=True)
+st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
 
-with col4:
-    st.markdown(render_metric_card(
-        "👥", f"{total_colaboradores_ativos}",
-        f"Colaboradores presentes (de {len(COLABORADORES_ZONAS)})", "card-white"
-    ), unsafe_allow_html=True)
+# ---------------------------------------------------------------------------
+# Cards de metricas (filtrados pelo colaborador)
+# ---------------------------------------------------------------------------
+if selected_colab and selected_colab in distribution and not df_colab.empty:
+    zonas_colab = COLABORADORES_ZONAS.get(selected_colab, [])
+    cidade_atrasada = "-"
+    qtd_cidade_atrasada = 0
+    if "Zona Ligacao" in df_colab.columns and "Data Tramite" in df_colab.columns:
+        df_sorted = df_colab.sort_values("Data Tramite", ascending=True)
+        for _, row in df_sorted.iterrows():
+            zona = row.get("Zona Ligacao")
+            if zona and int(zona) in ZONA_CIDADE:
+                cidade_atrasada = ZONA_CIDADE[int(zona)]
+                break
+        if cidade_atrasada != "-":
+            zonas_da_cidade = [z for z, c in ZONA_CIDADE.items() if c == cidade_atrasada]
+            qtd_cidade_atrasada = len(df_colab[df_colab["Zona Ligacao"].isin(zonas_da_cidade)])
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(render_metric_card(
+            "\U0001f4cb", f"{total_os:,}".replace(",", "."),
+            "OS's atribuidas", "card-cyan"
+        ), unsafe_allow_html=True)
+    with col2:
+        dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
+        st.markdown(render_metric_card(
+            "\U0001f4c5", dia_fmt,
+            f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red"
+        ), unsafe_allow_html=True)
+    with col3:
+        tipos_colab = df_colab["Tipo de Solicitação"].nunique() if not df_colab.empty else 0
+        st.markdown(render_metric_card(
+            "\U0001f4cb", str(tipos_colab),
+            "Tipos de serviços", "card-orange"
+        ), unsafe_allow_html=True)
+    with col4:
+        if cidade_atrasada != "-":
+            cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
+        else:
+            cidade_html = "-"
+        st.markdown(render_metric_card(
+            "\U0001f3d9️", cidade_html,
+            "Cidade mais atrasada", "card-white"
+        ), unsafe_allow_html=True)
+elif selected_colab and selected_colab in distribution and df_colab.empty:
+    st.info("Nenhuma OS atribuida para este colaborador.")
+elif selected_colab:
+    absence = load_absence_config()
+    if selected_colab in absence:
+        st.warning(f"{selected_colab} esta ausente. OS's redistribuidas.")
 
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# OS por dia (grafico de barras vertical verde-agua)
+# Acompanhamento pelo Tramite (grafico de barras vertical verde-agua)
 # ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">Acompanhamento pelo Tramite</div>', unsafe_allow_html=True)
 
@@ -679,37 +721,38 @@ os_dia_df = os_dia_df[os_dia_df["Quantidade"] > 0]
 os_dia_df = os_dia_df.sort_values("Data")
 os_dia_df["Data_fmt"] = os_dia_df["Data"].apply(lambda d: d.strftime("%d/%m"))
 
-fig_os_dia = go.Figure(
-    go.Bar(
-        x=os_dia_df["Data_fmt"],
-        y=os_dia_df["Quantidade"],
-        marker=dict(
-            color="#00D4AA",
-            cornerradius=4,
-        ),
-        text=os_dia_df["Quantidade"],
-        textposition="outside",
-        textfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+if not os_dia_df.empty:
+    fig_os_dia = go.Figure(
+        go.Bar(
+            x=os_dia_df["Data_fmt"],
+            y=os_dia_df["Quantidade"],
+            marker=dict(
+                color="#00D4AA",
+                cornerradius=4,
+            ),
+            text=os_dia_df["Quantidade"],
+            textposition="outside",
+            textfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+        )
     )
-)
-fig_os_dia.update_layout(
-    plot_bgcolor="rgba(0,0,0,0)",
-    paper_bgcolor="rgba(0,0,0,0)",
-    margin=dict(l=0, r=0, t=10, b=0),
-    height=300,
-    xaxis=dict(
-        color="rgba(255,255,255,0.6)",
-        tickfont=dict(size=12),
-        showgrid=False,
-        showline=False,
-    ),
-    yaxis=dict(
-        visible=False,
-        showgrid=False,
-    ),
-    bargap=0.3,
-)
-st.plotly_chart(fig_os_dia, use_container_width=True, config={"displayModeBar": False})
+    fig_os_dia.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=300,
+        xaxis=dict(
+            color="rgba(255,255,255,0.6)",
+            tickfont=dict(size=12),
+            showgrid=False,
+            showline=False,
+        ),
+        yaxis=dict(
+            visible=False,
+            showgrid=False,
+        ),
+        bargap=0.3,
+    )
+    st.plotly_chart(fig_os_dia, use_container_width=True, config={"displayModeBar": False})
 
 st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
@@ -718,11 +761,11 @@ st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">Distribuição por Tipo de Serviço</div>', unsafe_allow_html=True)
 
-tipo_counts = df["Tipo de Solicitação"].value_counts()
+tipo_counts = df_view["Tipo de Solicitação"].value_counts()
 max_count = tipo_counts.max() if not tipo_counts.empty else 1
 
 for tipo, count in tipo_counts.items():
-    pct = (count / total_os) * 100
+    pct = (count / total_os) * 100 if total_os > 0 else 0
     bar_width = (count / max_count) * 100
     st.markdown(f"""
     <div style="margin-bottom: 10px;">
@@ -740,101 +783,44 @@ for tipo, count in tipo_counts.items():
 st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Detalhamento por colaborador - Selecao + Tabela + Download
+# Tabela e Download do colaborador
 # ---------------------------------------------------------------------------
-st.markdown('<div class="section-title">Detalhamento por Colaborador</div>', unsafe_allow_html=True)
+if selected_colab and selected_colab in distribution and not df_colab.empty:
+    st.markdown('<div class="section-title">Detalhamento por Colaborador</div>', unsafe_allow_html=True)
 
-if not COLABORADORES_ZONAS:
-    st.info("Configure os colaboradores e suas zonas no codigo para habilitar a distribuicao.")
-else:
-    colab_names = list(COLABORADORES_ZONAS.keys())
-    selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select")
+    display_cols = [
+        "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
+        "Tipo de Solicitação", "Data Tramite", "Data Pedido",
+    ]
+    available_cols = [c for c in display_cols if c in df_colab.columns]
+    df_display = df_colab[available_cols].copy()
+    df_display = df_display.sort_values("Data Tramite", ascending=True)
 
-    if selected_colab and selected_colab in distribution:
-        df_colab = distribution[selected_colab]
+    for col in ["Data Tramite", "Data Pedido"]:
+        if col in df_display.columns:
+            df_display[col] = df_display[col].dt.strftime("%d/%m/%Y %H:%M")
 
-        zonas_colab = COLABORADORES_ZONAS.get(selected_colab, [])
-        cidade_atrasada = "-"
-        qtd_cidade_atrasada = 0
-        if not df_colab.empty and "Zona Ligacao" in df_colab.columns and "Data Tramite" in df_colab.columns:
-            df_sorted = df_colab.sort_values("Data Tramite", ascending=True)
-            for _, row in df_sorted.iterrows():
-                zona = row.get("Zona Ligacao")
-                if zona and int(zona) in ZONA_CIDADE:
-                    cidade_atrasada = ZONA_CIDADE[int(zona)]
-                    break
-            if cidade_atrasada != "-":
-                zonas_da_cidade = [z for z, c in ZONA_CIDADE.items() if c == cidade_atrasada]
-                qtd_cidade_atrasada = len(df_colab[df_colab["Zona Ligacao"].isin(zonas_da_cidade)])
+    st.dataframe(
+        df_display,
+        use_container_width=True,
+        height=min(38 + 4 * 35, 38 + len(df_display) * 35),
+        hide_index=True,
+    )
 
-        col_info1, col_info2, col_info3, col_info4 = st.columns(4)
-        with col_info1:
-            st.markdown(render_metric_card(
-                "📄", str(len(df_colab)),
-                "OS's atribuidas", "card-orange"
-            ), unsafe_allow_html=True)
-        with col_info2:
-            if cidade_atrasada != "-":
-                cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
-            else:
-                cidade_html = "-"
-            st.markdown(render_metric_card(
-                "🚨", cidade_html,
-                "Cidade mais atrasada", "card-red"
-            ), unsafe_allow_html=True)
-        with col_info3:
-            tipos_colab = df_colab["Tipo de Solicitação"].nunique() if not df_colab.empty else 0
-            st.markdown(render_metric_card(
-                "📋", str(tipos_colab),
-                "Tipos de serviços", "card-cyan"
-            ), unsafe_allow_html=True)
-        with col_info4:
-            st.markdown(render_metric_card(
-                "📍", str(len(zonas_colab)),
-                "Zonas responsável", "card-white"
-            ), unsafe_allow_html=True)
+    st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
-        st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+    excel_data = to_excel_download(df_colab)
+    downloaded = st.download_button(
+        label=f"Baixar Excel - {selected_colab}",
+        data=excel_data,
+        file_name=f"OS_{selected_colab.replace(' ', '_')}_{datetime.now(BR_TZ).strftime('%Y%m%d_%H%M')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="btn_download_colab",
+        use_container_width=True,
+    )
+    if downloaded:
+        add_audit_entry(selected_colab, "download")
 
-        if not df_colab.empty:
-            display_cols = [
-                "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
-                "Tipo de Solicitação", "Data Tramite", "Data Pedido",
-            ]
-            available_cols = [c for c in display_cols if c in df_colab.columns]
-            df_display = df_colab[available_cols].copy()
-            df_display = df_display.sort_values("Data Tramite", ascending=True)
-
-            for col in ["Data Tramite", "Data Pedido"]:
-                if col in df_display.columns:
-                    df_display[col] = df_display[col].dt.strftime("%d/%m/%Y %H:%M")
-
-            st.dataframe(
-                df_display,
-                use_container_width=True,
-                height=min(38 + 4 * 35, 38 + len(df_display) * 35),
-                hide_index=True,
-            )
-
-            st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
-
-            excel_data = to_excel_download(df_colab)
-            downloaded = st.download_button(
-                label=f"Baixar Excel - {selected_colab}",
-                data=excel_data,
-                file_name=f"OS_{selected_colab.replace(' ', '_')}_{datetime.now(BR_TZ).strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="btn_download_colab",
-                use_container_width=True,
-            )
-            if downloaded:
-                add_audit_entry(selected_colab, "download")
-        else:
-            st.info("Nenhuma OS atribuida para este colaborador.")
-    elif selected_colab:
-        absence = load_absence_config()
-        if selected_colab in absence:
-            st.warning(f"{selected_colab} esta ausente. OS's redistribuidas.")
 
 
 
