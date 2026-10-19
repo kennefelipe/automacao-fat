@@ -9,7 +9,7 @@ from PIL import Image
 import json
 import os
 
-icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan.png"))
+icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
 # ---------------------------------------------------------------------------
 # Configuracao da pagina
 # ---------------------------------------------------------------------------
