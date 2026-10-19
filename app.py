@@ -520,6 +520,18 @@ LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-fatur
 ICONE_FAT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-sidebar.png")
 
 @st.cache_resource
+def load_logo(path: str):
+    """Carrega a logo e recorta o espaço transparente em volta."""
+    try:
+        img = Image.open(path).convert("RGBA")
+        bbox = img.getchannel("A").getbbox()  # área não transparente
+        if bbox:
+            img = img.crop(bbox)
+        return img
+    except Exception:
+        return None
+
+@st.cache_resource
 def load_logo_centralizada_no_c(path: str, altura_ae: float = 0.25):
     """Centraliza pelo C/CORSAN, ignorando o 'ae' do canto superior direito,
     mas mantendo o 'ae' na imagem (adiciona margem transparente do lado oposto)."""
