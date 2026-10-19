@@ -574,7 +574,17 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("---")
-    
+
+    # Seletor de colaborador
+    st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Colaborador</p>', unsafe_allow_html=True)
+    if COLABORADORES_ZONAS:
+        colab_names = ["Todos"] + sorted(COLABORADORES_ZONAS.keys())
+        selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select", label_visibility="collapsed")
+    else:
+        selected_colab = "Todos"
+
+    st.markdown("---")
+
     # Upload do arquivo
     st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Carregar Extração</p>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
@@ -629,22 +639,6 @@ if logo is not None:
 
 st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Reservar espaco visual para os cards (preenchido depois do seletor)
-# ---------------------------------------------------------------------------
-cards_container = st.container()
-
-st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
-
-# ---------------------------------------------------------------------------
-# Seletor de colaborador (abaixo dos cards)
-# ---------------------------------------------------------------------------
-if COLABORADORES_ZONAS:
-    colab_names = ["Todos"] + sorted(COLABORADORES_ZONAS.keys())
-    selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select")
-else:
-    selected_colab = "Todos"
-
 is_todos = (selected_colab == "Todos")
 
 # Dados filtrados pelo colaborador selecionado
@@ -661,61 +655,60 @@ dia_mais_antigo = os_por_dia.index.min() if not os_por_dia.empty else date.today
 qtd_dia_antigo = os_por_dia.get(dia_mais_antigo, 0)
 
 # ---------------------------------------------------------------------------
-# Cards de metricas (preencher o container reservado acima)
+# Cards de metricas
 # ---------------------------------------------------------------------------
-with cards_container:
-    # Calcular cidade mais atrasada
-    df_cidade_src = df if is_todos else df_colab
-    cidade_atrasada = "-"
-    qtd_cidade_atrasada = 0
-    if not df_cidade_src.empty and "Zona Ligacao" in df_cidade_src.columns and "Data Tramite" in df_cidade_src.columns:
-        df_sorted = df_cidade_src.sort_values("Data Tramite", ascending=True)
-        for _, row in df_sorted.iterrows():
-            zona = row.get("Zona Ligacao")
-            if zona and int(zona) in ZONA_CIDADE:
-                cidade_atrasada = ZONA_CIDADE[int(zona)]
-                break
+# Calcular cidade mais atrasada
+df_cidade_src = df if is_todos else df_colab
+cidade_atrasada = "-"
+qtd_cidade_atrasada = 0
+if not df_cidade_src.empty and "Zona Ligacao" in df_cidade_src.columns and "Data Tramite" in df_cidade_src.columns:
+    df_sorted = df_cidade_src.sort_values("Data Tramite", ascending=True)
+    for _, row in df_sorted.iterrows():
+        zona = row.get("Zona Ligacao")
+        if zona and int(zona) in ZONA_CIDADE:
+            cidade_atrasada = ZONA_CIDADE[int(zona)]
+            break
+    if cidade_atrasada != "-":
+        zonas_da_cidade = [z for z, c in ZONA_CIDADE.items() if c == cidade_atrasada]
+        qtd_cidade_atrasada = len(df_cidade_src[df_cidade_src["Zona Ligacao"].isin(zonas_da_cidade)])
+
+tipos_count = df_view["Tipo de Solicitação"].nunique() if not df_view.empty else 0
+
+show_cards = is_todos or (not is_todos and selected_colab in distribution and not df_colab.empty)
+
+if show_cards:
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(render_metric_card(
+            "\U0001f4cb", f"{total_os:,}".replace(",", "."),
+            "OS's em aberto", "card-cyan"
+        ), unsafe_allow_html=True)
+    with col2:
+        dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
+        st.markdown(render_metric_card(
+            "\U0001f4c5", dia_fmt,
+            f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red"
+        ), unsafe_allow_html=True)
+    with col3:
+        st.markdown(render_metric_card(
+            "\U0001f4cb", str(tipos_count),
+            "Tipos de serviços", "card-orange"
+        ), unsafe_allow_html=True)
+    with col4:
         if cidade_atrasada != "-":
-            zonas_da_cidade = [z for z, c in ZONA_CIDADE.items() if c == cidade_atrasada]
-            qtd_cidade_atrasada = len(df_cidade_src[df_cidade_src["Zona Ligacao"].isin(zonas_da_cidade)])
-
-    tipos_count = df_view["Tipo de Solicitação"].nunique() if not df_view.empty else 0
-
-    show_cards = is_todos or (not is_todos and selected_colab in distribution and not df_colab.empty)
-
-    if show_cards:
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.markdown(render_metric_card(
-                "\U0001f4cb", f"{total_os:,}".replace(",", "."),
-                "OS's em aberto", "card-cyan"
-            ), unsafe_allow_html=True)
-        with col2:
-            dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
-            st.markdown(render_metric_card(
-                "\U0001f4c5", dia_fmt,
-                f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red"
-            ), unsafe_allow_html=True)
-        with col3:
-            st.markdown(render_metric_card(
-                "\U0001f4cb", str(tipos_count),
-                "Tipos de serviços", "card-orange"
-            ), unsafe_allow_html=True)
-        with col4:
-            if cidade_atrasada != "-":
-                cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
-            else:
-                cidade_html = "-"
-            st.markdown(render_metric_card(
-                "\U0001f3d9️", cidade_html,
-                "Cidade mais atrasada", "card-white"
-            ), unsafe_allow_html=True)
-    elif not is_todos and selected_colab in distribution and df_colab.empty:
-        st.info("Nenhuma OS atribuida para este colaborador.")
-    elif not is_todos:
-        absence = load_absence_config()
-        if selected_colab in absence:
-            st.warning(f"{selected_colab} esta ausente. OS's redistribuidas.")
+            cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
+        else:
+            cidade_html = "-"
+        st.markdown(render_metric_card(
+            "\U0001f3d9️", cidade_html,
+            "Cidade mais atrasada", "card-white"
+        ), unsafe_allow_html=True)
+elif not is_todos and selected_colab in distribution and df_colab.empty:
+    st.info("Nenhuma OS atribuida para este colaborador.")
+elif not is_todos:
+    absence = load_absence_config()
+    if selected_colab in absence:
+        st.warning(f"{selected_colab} esta ausente. OS's redistribuidas.")
 
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
