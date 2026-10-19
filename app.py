@@ -688,7 +688,7 @@ with cards_container:
         with col1:
             st.markdown(render_metric_card(
                 "\U0001f4cb", f"{total_os:,}".replace(",", "."),
-                "OS's atribuidas", "card-cyan"
+                "OS's em aberto", "card-cyan"
             ), unsafe_allow_html=True)
         with col2:
             dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
