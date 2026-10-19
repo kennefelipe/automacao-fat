@@ -583,6 +583,15 @@ with st.sidebar:
     else:
         selected_colab = "Todos"
 
+    # Filtro por tipo de servico
+    df_for_types = st.session_state.get("df_loaded")
+    if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
+        tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
+        st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px;">Tipo de Serviço</p>', unsafe_allow_html=True)
+        selected_tipo = st.selectbox("Tipo de Serviço", ["Todos"] + tipos_disponiveis, key="tipo_select", label_visibility="collapsed")
+    else:
+        selected_tipo = "Todos"
+
     st.markdown("---")
 
     # Upload do arquivo
@@ -649,6 +658,10 @@ else:
     df_colab = pd.DataFrame()
     df_view = df
 
+# Aplicar filtro por tipo de servico
+if selected_tipo != "Todos":
+    df_view = df_view[df_view["Tipo de Solicitação"] == selected_tipo]
+
 total_os = len(df_view)
 os_por_dia = df_view.groupby(df_view["Data Tramite"].dt.date).size()
 dia_mais_antigo = os_por_dia.index.min() if not os_por_dia.empty else date.today()
@@ -658,7 +671,7 @@ qtd_dia_antigo = os_por_dia.get(dia_mais_antigo, 0)
 # Cards de metricas
 # ---------------------------------------------------------------------------
 # Calcular cidade mais atrasada
-df_cidade_src = df if is_todos else df_colab
+df_cidade_src = df_view
 cidade_atrasada = "-"
 qtd_cidade_atrasada = 0
 if not df_cidade_src.empty and "Zona Ligacao" in df_cidade_src.columns and "Data Tramite" in df_cidade_src.columns:
