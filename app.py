@@ -646,9 +646,9 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Upload do arquivo
+        # Upload do arquivo
     st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Carregar Extração</p>', unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
+    uploaded_file = st.file_uploader("", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
 
     if uploaded_file is not None:
         try:
