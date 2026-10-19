@@ -14,7 +14,7 @@ icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"
 # Configuracao da pagina
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Distribuição OS's",
+    page_title="ELLO",
     page_icon=icone,
     layout="wide",
     initial_sidebar_state="expanded",
