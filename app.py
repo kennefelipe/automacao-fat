@@ -520,14 +520,26 @@ LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-fatur
 ICONE_FAT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-sidebar.png")
 
 @st.cache_resource
-def load_logo(path: str):
-    """Carrega a logo e recorta o espaço transparente em volta."""
+def load_logo_centralizada_no_c(path: str, altura_ae: float = 0.25):
+    """Centraliza pelo C/CORSAN, ignorando o 'ae' do canto superior direito,
+    mas mantendo o 'ae' na imagem (adiciona margem transparente do lado oposto)."""
     try:
         img = Image.open(path).convert("RGBA")
-        bbox = img.getchannel("A").getbbox()  # área não transparente
-        if bbox:
-            img = img.crop(bbox)
-        return img
+        img = img.crop(img.getchannel("A").getbbox())
+        w, h = img.size
+
+        # mede só a parte de baixo, onde o 'ae' não existe
+        corpo = img.crop((0, int(h * altura_ae), w, h))
+        esq, _, dir_, _ = corpo.getchannel("A").getbbox()
+        centro_c = (esq + dir_) / 2
+
+        pad = int(round(abs(w - 2 * centro_c)))
+        nova = Image.new("RGBA", (w + pad, h), (0, 0, 0, 0))
+        if centro_c < w / 2:            # 'ae' sobra à direita -> margem à esquerda
+            nova.paste(img, (pad, 0))
+        else:                           # 'ae' sobra à esquerda -> margem à direita
+            nova.paste(img, (0, 0))
+        return nova
     except Exception:
         return None
 
@@ -535,7 +547,7 @@ def load_logo(path: str):
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    logo = load_logo(ICONE_FAT)
+    logo = load_logo_centralizada_no_c(ICONE_FAT)
     if logo is not None:
         st.markdown(
             """
@@ -556,7 +568,7 @@ with st.sidebar:
                 justify-content: center;
             }
             [data-testid="stSidebar"] [data-testid="stImage"] img {
-                width: 170px !important;   /* ajuste o tamanho aqui */
+                width: 230px !important;   /* ajuste o tamanho aqui */
                 max-width: 100%;
                 height: auto;
             }
