@@ -720,7 +720,7 @@ with cards_container:
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Acompanhamento pelo Tramite (grafico de barras vertical verde-agua)
+# Acompanhamento pelo Tramite (grafico interativo - clique no dia)
 # ---------------------------------------------------------------------------
 st.markdown('<div class="section-title">Acompanhamento pelo Tramite</div>', unsafe_allow_html=True)
 
@@ -729,6 +729,8 @@ os_dia_df.columns = ["Data", "Quantidade"]
 os_dia_df = os_dia_df[os_dia_df["Quantidade"] > 0]
 os_dia_df = os_dia_df.sort_values("Data")
 os_dia_df["Data_fmt"] = os_dia_df["Data"].apply(lambda d: d.strftime("%d/%m"))
+
+selected_dia = None
 
 if not os_dia_df.empty:
     fig_os_dia = go.Figure(
@@ -761,48 +763,98 @@ if not os_dia_df.empty:
         ),
         bargap=0.3,
     )
-    st.plotly_chart(fig_os_dia, use_container_width=True, config={"displayModeBar": False})
+
+    chart_key = f"chart_tramite_{selected_colab}"
+    event = st.plotly_chart(
+        fig_os_dia,
+        use_container_width=True,
+        config={"displayModeBar": False},
+        on_select="rerun",
+        key=chart_key,
+    )
+
+    if event and hasattr(event, "selection") and event.selection and event.selection.points:
+        clicked_fmt = event.selection.points[0].get("x")
+        if clicked_fmt:
+            match = os_dia_df[os_dia_df["Data_fmt"] == clicked_fmt]
+            if not match.empty:
+                selected_dia = match.iloc[0]["Data"]
+
+# ---------------------------------------------------------------------------
+# Filtro por dia (aplicado nas secoes abaixo)
+# ---------------------------------------------------------------------------
+if selected_dia is not None:
+    df_dia = df_view[df_view["Data Tramite"].dt.date == selected_dia]
+    dia_label = selected_dia.strftime("%d/%m/%Y")
+    st.markdown(
+        '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,0.12);'
+        'border:1px solid rgba(0,212,170,0.3);border-radius:20px;padding:6px 16px;margin:4px 0 12px 0;">'
+        '<span style="color:#00D4AA;font-size:13px;font-weight:600;">'
+        '\U0001f4c5 Filtrado por: ' + dia_label + '</span>'
+        '<span style="color:rgba(255,255,255,0.4);font-size:11px;">Clique novamente na barra para limpar</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    df_dia = df_view
+
+total_filtrado = len(df_dia)
 
 st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # Quantidade por tipo de servico - Grafico de barras horizontal amarelo
 # ---------------------------------------------------------------------------
-st.markdown('<div class="section-title">Distribuição por Tipo de Serviço</div>', unsafe_allow_html=True)
+titulo_tipo = "Distribuição por Tipo de Serviço"
+if selected_dia is not None:
+    titulo_tipo += " — " + selected_dia.strftime("%d/%m/%Y")
+st.markdown(f'<div class="section-title">{titulo_tipo}</div>', unsafe_allow_html=True)
 
-tipo_counts = df_view["Tipo de Solicitação"].value_counts()
+tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
 max_count = tipo_counts.max() if not tipo_counts.empty else 1
 
-for tipo, count in tipo_counts.items():
-    pct = (count / total_os) * 100 if total_os > 0 else 0
-    bar_width = (count / max_count) * 100
-    st.markdown(f"""
-    <div style="margin-bottom: 10px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <span style="color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;">{tipo}</span>
-            <span style="color: #FFB347; font-size: 14px; font-weight: 700;">{count} <span style="font-size:11px; color: rgba(255,255,255,0.4);">({pct:.1f}%)</span></span>
-        </div>
-        <div style="background: rgba(255,255,255,0.06); border-radius: 6px; height: 28px; overflow: hidden;">
-            <div style="background: linear-gradient(90deg, #FF9A2E, #FFB347); width: {bar_width}%;
-                        height: 100%; border-radius: 6px; transition: width 0.5s ease;"></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+if tipo_counts.empty:
+    st.caption("Nenhuma OS para esta data.")
+else:
+    for tipo, count in tipo_counts.items():
+        pct = (count / total_filtrado) * 100 if total_filtrado > 0 else 0
+        bar_width = (count / max_count) * 100
+        st.markdown(
+            '<div style="margin-bottom: 10px;">'
+            '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">'
+            f'<span style="color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;">{tipo}</span>'
+            f'<span style="color: #FFB347; font-size: 14px; font-weight: 700;">{count} '
+            f'<span style="font-size:11px; color: rgba(255,255,255,0.4);">({pct:.1f}%)</span></span>'
+            '</div>'
+            '<div style="background: rgba(255,255,255,0.06); border-radius: 6px; height: 28px; overflow: hidden;">'
+            f'<div style="background: linear-gradient(90deg, #FF9A2E, #FFB347); width: {bar_width}%;'
+            ' height: 100%; border-radius: 6px; transition: width 0.5s ease;"></div>'
+            '</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
 st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Tabela e Download do colaborador (so aparece quando um nome eh selecionado)
+# Tabela e Download (colaborador selecionado OU dia selecionado)
 # ---------------------------------------------------------------------------
-if not is_todos and selected_colab in distribution and not df_colab.empty:
-    st.markdown('<div class="section-title">Detalhamento por Colaborador</div>', unsafe_allow_html=True)
+show_table = (not is_todos or selected_dia is not None) and not df_dia.empty
+
+if show_table:
+    titulo_tabela = "Detalhamento"
+    if not is_todos:
+        titulo_tabela += " — " + selected_colab.split("(")[0].strip()
+    if selected_dia is not None:
+        titulo_tabela += " — " + selected_dia.strftime("%d/%m/%Y")
+    st.markdown(f'<div class="section-title">{titulo_tabela}</div>', unsafe_allow_html=True)
 
     display_cols = [
         "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
         "Tipo de Solicitação", "Data Tramite", "Data Pedido",
     ]
-    available_cols = [c for c in display_cols if c in df_colab.columns]
-    df_display = df_colab[available_cols].copy()
+    available_cols = [c for c in display_cols if c in df_dia.columns]
+    df_display = df_dia[available_cols].copy()
     df_display = df_display.sort_values("Data Tramite", ascending=True)
 
     for col in ["Data Tramite", "Data Pedido"]:
@@ -818,20 +870,32 @@ if not is_todos and selected_colab in distribution and not df_colab.empty:
 
     st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
-    excel_data = to_excel_download(df_colab)
+    excel_data = to_excel_download(df_dia)
+    label_parts = ["Baixar Excel"]
+    if not is_todos:
+        label_parts.append(selected_colab.split("(")[0].strip())
+    if selected_dia is not None:
+        label_parts.append(selected_dia.strftime("%d/%m"))
+    download_label = " - ".join(label_parts)
+
+    fname_parts = ["OS"]
+    if not is_todos:
+        fname_parts.append(selected_colab.replace(" ", "_"))
+    if selected_dia is not None:
+        fname_parts.append(selected_dia.strftime("%Y%m%d"))
+    fname_parts.append(datetime.now(BR_TZ).strftime("%H%M"))
+    download_fname = "_".join(fname_parts) + ".xlsx"
+
     downloaded = st.download_button(
-        label=f"Baixar Excel - {selected_colab}",
+        label=download_label,
         data=excel_data,
-        file_name=f"OS_{selected_colab.replace(' ', '_')}_{datetime.now(BR_TZ).strftime('%Y%m%d_%H%M')}.xlsx",
+        file_name=download_fname,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="btn_download_colab",
+        key=f"btn_download_{hash(str(selected_colab) + str(selected_dia)) % 99999}",
         use_container_width=True,
     )
-    if downloaded:
+    if downloaded and not is_todos:
         add_audit_entry(selected_colab, "download")
-
-
-
 
 # ===========================================================================
 # PAINEL ADMINISTRATIVO
