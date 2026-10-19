@@ -538,7 +538,18 @@ with st.sidebar:
     logo = load_logo(ICONE_FAT)
     if logo is not None:
         st.markdown("<div style='padding: 20px 0 10px 0;'></div>", unsafe_allow_html=True)
-        st.image(logo, width=225)
+        st.markdown(
+            """
+            <style>
+            [data-testid="stSidebar"] [data-testid="stImage"] {
+                display: flex;
+                justify-content: center;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.image(logo, width=250)
     else:
         # Fallback caso o arquivo nao seja encontrado
         st.markdown("""
@@ -566,7 +577,7 @@ with st.sidebar:
         st.markdown("""
         <div style="background: rgba(0,200,150,0.1); border: 1px solid rgba(0,200,150,0.3);
                     border-radius: 8px; padding: 10px; text-align: center; margin-bottom: 10px;">
-            <span style="color: #00C896; font-weight: 600;">ADM Conectado</span>
+            <span style="color: #00C896; font-weight: 600;">Admin Conectado</span>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Sair", key="btn_logout", use_container_width=True):
