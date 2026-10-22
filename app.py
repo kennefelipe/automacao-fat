@@ -8,6 +8,7 @@ BR_TZ = timezone(timedelta(hours=-3))
 from PIL import Image
 import json
 import os
+import unicodedata
 
 icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
 # ---------------------------------------------------------------------------
@@ -286,7 +287,7 @@ ZONA_CIDADE = {
     41: "Candelária", 42: "Cândido Godoi", 43: "Canela", 44: "Canguçu",
     45: "Canoas", 46: "Capao da Canoa", 47: "Capela de Santana",
     48: "Carazinho", 49: "Carlos Barbosa", 50: "Casca", 51: "Catuipe",
-    52: "Cerro Largo", 53: "Chapada", 54: "Charqueadas", 55: "Chiapeta",
+    52: "Cerro Largo", 53: "Chapada", 54: "Charqueadas", 55: "Chiapetta",
     56: "Chui", 57: "Cidreira", 58: "Ciriaco", 59: "Colorado",
     60: "Condor", 61: "Constantina", 62: "Coronel Bicaco",
     63: "Crissiumal", 64: "Cristal", 65: "Cruz Alta",
@@ -306,7 +307,7 @@ ZONA_CIDADE = {
     108: "Ilopolis", 109: "Irai", 110: "Itaqui",
     111: "Itatiba do Sul", 113: "Jacutinga", 114: "Jaguarao",
     115: "Jaguari", 116: "Julio de Castilhos", 117: "Lagoa Vermelha",
-    118: "Lajeado", 119: "Lavras do Sul", 120: "Liberato Sauzano",
+    118: "Lajeado", 119: "Lavras do Sul", 120: "Liberato Salzano",
     121: "Machadinho", 122: "Manoel Viana", 123: "Marau",
     124: "Marcelino Ramos", 125: "Mariano Moro", 127: "Mata",
     128: "Maximiliano de Almeida", 129: "Minas do Leao",
@@ -352,7 +353,7 @@ ZONA_CIDADE = {
     239: "Viamao", 240: "Vicente Dutra", 241: "Victor Graeff",
     242: "Independência", 245: "Xangri-La", 248: "Silveira Martins",
     249: "Portao", 250: "Faxinal do Soturno", 251: "Caicara",
-    256: "Mauricio Cardoso", 257: "Entre Ijuís", 258: "Cerrito",
+    256: "Doutor Maurício Cardoso", 257: "Entre-Ijuís", 258: "Cerrito",
     261: "Campos Borges", 262: "Fagundes Varela",
     263: "Capivari do Sul", 269: "Dilermando de Aguiar",
     270: "Jaquirana", 272: "Imbe", 275: "Triunfo", 276: "Paverama",
@@ -518,6 +519,201 @@ if "df_loaded" not in st.session_state:
 # ---------------------------------------------------------------------------
 LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-faturamento-opcao1-branco.png")
 ICONE_FAT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-sidebar.png")
+GEOJSON_RS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "rs_municipios.json")
+
+# Paleta do mapa (validada contra a superficie #0F2044)
+MAPA_RAMPA = ["#1c5cab", "#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6", "#cde2fb"]
+MAPA_SLOTS = ["#3987e5", "#d95926", "#199e70", "#c98500",
+              "#d55181", "#008300", "#9085e9", "#e66767"]
+MAPA_OUTROS = "#7d8696"
+MAPA_VAZIO = "rgba(255,255,255,0.05)"
+MAPA_MUDO = "rgba(255,255,255,0.09)"
+MAPA_BORDA = "rgba(255,255,255,0.18)"
+
+
+def norm_cidade(nome: str) -> str:
+    """Normaliza nome de cidade para casar com o GeoJSON (sem acento, sem hifen)."""
+    s = unicodedata.normalize("NFKD", str(nome))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return " ".join(s.lower().replace("-", " ").split())
+
+
+@st.cache_data
+def load_geojson():
+    """Contornos dos 497 municipios do RS (IBGE). Retorna (geojson, key->codigo, codigo->nome)."""
+    try:
+        with open(GEOJSON_RS, encoding="utf-8") as f:
+            geo = json.load(f)
+    except Exception:
+        return None, {}, {}
+    key_to_cod, cod_to_nome = {}, {}
+    for feat in geo["features"]:
+        p = feat["properties"]
+        key_to_cod[p["key"]] = p["codarea"]
+        cod_to_nome[p["codarea"]] = p["nome"]
+    return geo, key_to_cod, cod_to_nome
+
+
+def mapa_layout(fig):
+    fig.update_geos(
+        visible=False,
+        fitbounds="locations",
+        projection_type="mercator",
+        bgcolor="rgba(0,0,0,0)",
+    )
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=0, t=36, b=0),
+        height=560,
+        dragmode=False,
+        font=dict(color="#c3c2b7", size=12),
+        legend=dict(
+            orientation="h",
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#f0efec", size=11),
+            itemsizing="constant",
+            yanchor="bottom", y=1.0, xanchor="left", x=0,
+        ),
+    )
+    return fig
+
+
+def build_mapa(df_src, selected_colab, is_todos, modo):
+    """Monta o mapa de cobertura do RS.
+
+    Territorio vem de COLABORADORES_ZONAS (fixo); o volume de OS vem de df_src,
+    que ja carrega os filtros ativos da tela.
+    """
+    geo, key_to_cod, cod_to_nome = load_geojson()
+    if geo is None:
+        return None, "Arquivo de mapa nao encontrado."
+
+    zona_colab = {}
+    for nome, zonas in COLABORADORES_ZONAS.items():
+        for z in zonas:
+            zona_colab[z] = nome
+
+    cod_colab = {}
+    for z, cidade in ZONA_CIDADE.items():
+        cod = key_to_cod.get(norm_cidade(cidade))
+        if cod and z in zona_colab:
+            cod_colab[cod] = zona_colab[z]
+
+    if not cod_colab:
+        return None, "Nenhuma zona mapeada."
+
+    # OS por municipio, respeitando os filtros da tela
+    cod_os = {}
+    if "Zona Ligacao" in df_src.columns:
+        for zona, qtd in df_src["Zona Ligacao"].value_counts().items():
+            try:
+                z = int(zona)
+            except (TypeError, ValueError):
+                continue
+            cidade = ZONA_CIDADE.get(z)
+            if not cidade:
+                continue
+            cod = key_to_cod.get(norm_cidade(cidade))
+            if cod:
+                cod_os[cod] = cod_os.get(cod, 0) + int(qtd)
+
+    todos_cods = [f["properties"]["codarea"] for f in geo["features"]]
+    base = go.Choropleth(
+        geojson=geo, locations=todos_cods, z=[0] * len(todos_cods),
+        colorscale=[[0, MAPA_VAZIO], [1, MAPA_VAZIO]], showscale=False,
+        marker=dict(line=dict(color="rgba(255,255,255,0.10)", width=0.3)),
+        hoverinfo="skip", showlegend=False,
+    )
+
+    escala = [[i / (len(MAPA_RAMPA) - 1), c] for i, c in enumerate(MAPA_RAMPA)]
+    curto = (selected_colab or "").split("(")[0].strip()
+
+    # ---- Colaborador selecionado: destaca o territorio dele, esmaece o resto
+    if not is_todos and selected_colab in COLABORADORES_ZONAS:
+        meus = [c for c, dono in cod_colab.items() if dono == selected_colab]
+        outros = [c for c in cod_colab if c not in set(meus)]
+        if not meus:
+            return None, "Este colaborador nao tem zonas mapeadas."
+        fig = go.Figure([base])
+        if outros:
+            fig.add_trace(go.Choropleth(
+                geojson=geo, locations=outros, z=[0] * len(outros),
+                colorscale=[[0, MAPA_MUDO], [1, MAPA_MUDO]], showscale=False,
+                marker=dict(line=dict(color="rgba(255,255,255,0.12)", width=0.3)),
+                hoverinfo="skip", showlegend=False,
+            ))
+        cd = [[cod_to_nome[c], cod_os.get(c, 0)] for c in meus]
+        fig.add_trace(go.Choropleth(
+            geojson=geo, locations=meus, z=[cod_os.get(c, 0) for c in meus],
+            customdata=cd, colorscale=escala, showscale=True, showlegend=False,
+            marker=dict(line=dict(color="#ffffff", width=0.7)),
+            colorbar=dict(
+                title=dict(text="OS", font=dict(color="#c3c2b7", size=11)),
+                tickfont=dict(color="#c3c2b7", size=10),
+                thickness=12, len=0.45, x=0.99, y=0.25, outlinewidth=0,
+            ),
+            hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]} OS<extra></extra>",
+        ))
+        total_meu = sum(cod_os.get(c, 0) for c in meus)
+        return mapa_layout(fig), f"{curto}: {len(meus)} cidades, {total_meu} OS"
+
+    # ---- Visao Todos: por volume de OS
+    if modo == "Onde esta o atraso":
+        cods = sorted(cod_colab)
+        cd = [[cod_to_nome[c], cod_colab[c].split("(")[0].strip(), cod_os.get(c, 0)] for c in cods]
+        fig = go.Figure([base])
+        fig.add_trace(go.Choropleth(
+            geojson=geo, locations=cods, z=[cod_os.get(c, 0) for c in cods],
+            customdata=cd, colorscale=escala, showlegend=False,
+            marker=dict(line=dict(color=MAPA_BORDA, width=0.4)),
+            colorbar=dict(
+                title=dict(text="OS", font=dict(color="#c3c2b7", size=11)),
+                tickfont=dict(color="#c3c2b7", size=10),
+                thickness=12, len=0.45, x=0.99, y=0.25, outlinewidth=0,
+            ),
+            hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}<br>%{customdata[2]} OS<extra></extra>",
+        ))
+        return mapa_layout(fig), None
+
+    # ---- Visao Todos: por responsavel
+    tamanho = {}
+    for dono in cod_colab.values():
+        tamanho[dono] = tamanho.get(dono, 0) + 1
+    ordenados = sorted(tamanho, key=lambda c: -tamanho[c])
+    principais = ordenados[:len(MAPA_SLOTS)]
+    cor_de = {c: MAPA_SLOTS[i] for i, c in enumerate(principais)}
+
+    grupos = {}
+    for cod, dono in cod_colab.items():
+        rotulo = dono.split("(")[0].strip() if dono in principais else "Outros"
+        grupos.setdefault(rotulo, []).append(cod)
+
+    fig = go.Figure([base])
+    ordem = [c.split("(")[0].strip() for c in principais]
+    if "Outros" in grupos:
+        ordem.append("Outros")
+    for rotulo in ordem:
+        lst = grupos.get(rotulo, [])
+        if not lst:
+            continue
+        if rotulo == "Outros":
+            cor = MAPA_OUTROS
+        else:
+            cor = cor_de[next(c for c in principais if c.split("(")[0].strip() == rotulo)]
+        cd = [[cod_to_nome[c], cod_colab[c].split("(")[0].strip(), cod_os.get(c, 0)] for c in lst]
+        fig.add_trace(go.Choropleth(
+            geojson=geo, locations=lst, z=[1] * len(lst), customdata=cd,
+            colorscale=[[0, cor], [1, cor]], showscale=False,
+            name=rotulo, showlegend=True,
+            marker=dict(line=dict(color=MAPA_BORDA, width=0.4)),
+            hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}<br>%{customdata[2]} OS<extra></extra>",
+        ))
+    nota = None
+    if "Outros" in grupos:
+        menores = [c.split("(")[0].strip() for c in ordenados[len(MAPA_SLOTS):]]
+        nota = "Outros: " + ", ".join(menores)
+    return mapa_layout(fig), nota
 
 @st.cache_resource
 def load_logo(path: str):
@@ -895,6 +1091,35 @@ else:
             '</div>',
             unsafe_allow_html=True,
         )
+
+st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Mapa de cobertura do RS
+# ---------------------------------------------------------------------------
+st.markdown('<div class="section-title">Mapa de Cobertura</div>', unsafe_allow_html=True)
+
+if is_todos:
+    modo_mapa = st.radio(
+        "Modo do mapa",
+        ["Onde esta o atraso", "Por responsavel"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="modo_mapa",
+    )
+else:
+    modo_mapa = "Onde esta o atraso"
+
+fig_mapa, nota_mapa = build_mapa(df_dia, selected_colab, is_todos, modo_mapa)
+
+if fig_mapa is None:
+    st.caption(nota_mapa or "Mapa indisponivel.")
+else:
+    st.plotly_chart(fig_mapa, use_container_width=True, config={"displayModeBar": False})
+    legenda = "Passe o mouse sobre um municipio para ver cidade, responsavel e OS."
+    if nota_mapa:
+        legenda = nota_mapa + " · " + legenda
+    st.caption(legenda)
 
 st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
