@@ -524,7 +524,8 @@ GEOJSON_RS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "r
 # Paleta do mapa (validada contra a superficie #0F2044)
 MAPA_RAMPA = ["#1c5cab", "#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6", "#cde2fb"]
 MAPA_SLOTS = ["#3987e5", "#d95926", "#199e70", "#c98500",
-              "#d55181", "#008300", "#9085e9", "#e66767"]
+              "#d55181", "#008300", "#9085e9", "#e66767",
+              "#1f9aa6", "#6f6fd0", "#a8742a", "#c75bbf"]
 MAPA_OUTROS = "#7d8696"
 MAPA_VAZIO = "rgba(255,255,255,0.05)"
 MAPA_MUDO = "rgba(255,255,255,0.09)"
@@ -554,6 +555,52 @@ def load_geojson():
     return geo, key_to_cod, cod_to_nome
 
 
+def mapa_cores():
+    """Cor fixa por colaborador, por ordem alfabetica (nao muda com filtro)."""
+    nomes = sorted(COLABORADORES_ZONAS.keys())
+    return {n: MAPA_SLOTS[i % len(MAPA_SLOTS)] for i, n in enumerate(nomes)}
+
+
+def mapa_resumo(df_src):
+    """[(nome, curto, cor, qtd_cidades, qtd_os)] por colaborador, do maior pro menor."""
+    geo, key_to_cod, _ = load_geojson()
+    if geo is None:
+        return []
+
+    zona_colab = {}
+    for nome, zonas in COLABORADORES_ZONAS.items():
+        for z in zonas:
+            zona_colab[z] = nome
+
+    cidades_de, cod_colab = {}, {}
+    for z, cidade in ZONA_CIDADE.items():
+        cod = key_to_cod.get(norm_cidade(cidade))
+        dono = zona_colab.get(z)
+        if cod and dono:
+            cod_colab[cod] = dono
+            cidades_de[dono] = cidades_de.get(dono, 0) + 1
+
+    os_de = {}
+    if "Zona Ligacao" in df_src.columns:
+        for zona, qtd in df_src["Zona Ligacao"].value_counts().items():
+            try:
+                z = int(zona)
+            except (TypeError, ValueError):
+                continue
+            dono = zona_colab.get(z)
+            if dono:
+                os_de[dono] = os_de.get(dono, 0) + int(qtd)
+
+    cor_de = mapa_cores()
+    linhas = [
+        (n, n.split("(")[0].strip(), cor_de.get(n, MAPA_OUTROS),
+         cidades_de.get(n, 0), os_de.get(n, 0))
+        for n in COLABORADORES_ZONAS
+    ]
+    linhas.sort(key=lambda r: (-r[4], -r[3]))
+    return linhas
+
+
 def mapa_layout(fig):
     fig.update_geos(
         visible=False,
@@ -564,22 +611,16 @@ def mapa_layout(fig):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=0, r=0, t=36, b=0),
-        height=560,
+        margin=dict(l=0, r=0, t=0, b=0),
+        height=720,
         dragmode=False,
+        showlegend=False,
         font=dict(color="#c3c2b7", size=12),
-        legend=dict(
-            orientation="h",
-            bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#f0efec", size=11),
-            itemsizing="constant",
-            yanchor="bottom", y=1.0, xanchor="left", x=0,
-        ),
     )
     return fig
 
 
-def build_mapa(df_src, selected_colab, is_todos, modo):
+def build_mapa(df_src, foco, modo):
     """Monta o mapa de cobertura do RS.
 
     Territorio vem de COLABORADORES_ZONAS (fixo); o volume de OS vem de df_src,
@@ -627,11 +668,11 @@ def build_mapa(df_src, selected_colab, is_todos, modo):
     )
 
     escala = [[i / (len(MAPA_RAMPA) - 1), c] for i, c in enumerate(MAPA_RAMPA)]
-    curto = (selected_colab or "").split("(")[0].strip()
+    curto = (foco or "").split("(")[0].strip()
 
-    # ---- Colaborador selecionado: destaca o territorio dele, esmaece o resto
-    if not is_todos and selected_colab in COLABORADORES_ZONAS:
-        meus = [c for c, dono in cod_colab.items() if dono == selected_colab]
+    # ---- Colaborador em foco: destaca o territorio dele, esmaece o resto
+    if foco in COLABORADORES_ZONAS:
+        meus = [c for c, dono in cod_colab.items() if dono == foco]
         outros = [c for c in cod_colab if c not in set(meus)]
         if not meus:
             return None, "Este colaborador nao tem zonas mapeadas."
@@ -676,44 +717,24 @@ def build_mapa(df_src, selected_colab, is_todos, modo):
         ))
         return mapa_layout(fig), None
 
-    # ---- Visao Todos: por responsavel
-    tamanho = {}
-    for dono in cod_colab.values():
-        tamanho[dono] = tamanho.get(dono, 0) + 1
-    ordenados = sorted(tamanho, key=lambda c: -tamanho[c])
-    principais = ordenados[:len(MAPA_SLOTS)]
-    cor_de = {c: MAPA_SLOTS[i] for i, c in enumerate(principais)}
-
-    grupos = {}
+    # ---- Visao Todos: por responsavel (cada colaborador com sua cor)
+    cor_de = mapa_cores()
+    por_dono = {}
     for cod, dono in cod_colab.items():
-        rotulo = dono.split("(")[0].strip() if dono in principais else "Outros"
-        grupos.setdefault(rotulo, []).append(cod)
+        por_dono.setdefault(dono, []).append(cod)
 
     fig = go.Figure([base])
-    ordem = [c.split("(")[0].strip() for c in principais]
-    if "Outros" in grupos:
-        ordem.append("Outros")
-    for rotulo in ordem:
-        lst = grupos.get(rotulo, [])
-        if not lst:
-            continue
-        if rotulo == "Outros":
-            cor = MAPA_OUTROS
-        else:
-            cor = cor_de[next(c for c in principais if c.split("(")[0].strip() == rotulo)]
-        cd = [[cod_to_nome[c], cod_colab[c].split("(")[0].strip(), cod_os.get(c, 0)] for c in lst]
+    for dono in sorted(por_dono, key=lambda d: -len(por_dono[d])):
+        lst = por_dono[dono]
+        cor = cor_de.get(dono, MAPA_OUTROS)
+        cd = [[cod_to_nome[c], dono.split("(")[0].strip(), cod_os.get(c, 0)] for c in lst]
         fig.add_trace(go.Choropleth(
             geojson=geo, locations=lst, z=[1] * len(lst), customdata=cd,
-            colorscale=[[0, cor], [1, cor]], showscale=False,
-            name=rotulo, showlegend=True,
+            colorscale=[[0, cor], [1, cor]], showscale=False, showlegend=False,
             marker=dict(line=dict(color=MAPA_BORDA, width=0.4)),
             hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}<br>%{customdata[2]} OS<extra></extra>",
         ))
-    nota = None
-    if "Outros" in grupos:
-        menores = [c.split("(")[0].strip() for c in ordenados[len(MAPA_SLOTS):]]
-        nota = "Outros: " + ", ".join(menores)
-    return mapa_layout(fig), nota
+    return mapa_layout(fig), None
 
 @st.cache_resource
 def load_logo(path: str):
@@ -977,212 +998,268 @@ elif not is_todos:
 
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# Acompanhamento pelo Tramite (grafico interativo - clique no dia)
-# ---------------------------------------------------------------------------
-st.markdown('<div class="section-title">Acompanhamento pelo Tramite</div>', unsafe_allow_html=True)
+tab_acomp, tab_mapa = st.tabs(["Acompanhamento", "Mapa de Cobertura"])
 
-os_dia_df = os_por_dia.reset_index()
-os_dia_df.columns = ["Data", "Quantidade"]
-os_dia_df = os_dia_df[os_dia_df["Quantidade"] > 0]
-os_dia_df = os_dia_df.sort_values("Data")
-os_dia_df["Data_fmt"] = os_dia_df["Data"].apply(lambda d: d.strftime("%d/%m"))
+with tab_acomp:
+    # ---------------------------------------------------------------------------
+    # Acompanhamento pelo Tramite (grafico interativo - clique no dia)
+    # ---------------------------------------------------------------------------
+    st.markdown('<div class="section-title">Acompanhamento pelo Tramite</div>', unsafe_allow_html=True)
 
-selected_dia = None
+    os_dia_df = os_por_dia.reset_index()
+    os_dia_df.columns = ["Data", "Quantidade"]
+    os_dia_df = os_dia_df[os_dia_df["Quantidade"] > 0]
+    os_dia_df = os_dia_df.sort_values("Data")
+    os_dia_df["Data_fmt"] = os_dia_df["Data"].apply(lambda d: d.strftime("%d/%m"))
 
-if not os_dia_df.empty:
-    fig_os_dia = go.Figure(
-        go.Bar(
-            x=os_dia_df["Data_fmt"],
-            y=os_dia_df["Quantidade"],
-            marker=dict(
-                color="#00D4AA",
-                cornerradius=4,
-            ),
-            text=os_dia_df["Quantidade"],
-            textposition="outside",
-            textfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+    selected_dia = None
+
+    if not os_dia_df.empty:
+        fig_os_dia = go.Figure(
+            go.Bar(
+                x=os_dia_df["Data_fmt"],
+                y=os_dia_df["Quantidade"],
+                marker=dict(
+                    color="#00D4AA",
+                    cornerradius=4,
+                ),
+                text=os_dia_df["Quantidade"],
+                textposition="outside",
+                textfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+            )
         )
-    )
-    fig_os_dia.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=0, r=0, t=10, b=0),
-        height=300,
-        xaxis=dict(
-            color="rgba(255,255,255,0.6)",
-            tickfont=dict(size=12),
-            showgrid=False,
-            showline=False,
-        ),
-        yaxis=dict(
-            visible=False,
-            showgrid=False,
-        ),
-        bargap=0.3,
-    )
+        fig_os_dia.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=300,
+            xaxis=dict(
+                color="rgba(255,255,255,0.6)",
+                tickfont=dict(size=12),
+                showgrid=False,
+                showline=False,
+            ),
+            yaxis=dict(
+                visible=False,
+                showgrid=False,
+            ),
+            bargap=0.3,
+        )
 
-    chart_key = f"chart_tramite_{selected_colab}"
-    event = st.plotly_chart(
-        fig_os_dia,
-        use_container_width=True,
-        config={"displayModeBar": False},
-        on_select="rerun",
-        key=chart_key,
-    )
+        chart_key = f"chart_tramite_{selected_colab}"
+        event = st.plotly_chart(
+            fig_os_dia,
+            use_container_width=True,
+            config={"displayModeBar": False},
+            on_select="rerun",
+            key=chart_key,
+        )
 
-    if event and hasattr(event, "selection") and event.selection and event.selection.points:
-        clicked_fmt = event.selection.points[0].get("x")
-        if clicked_fmt:
-            match = os_dia_df[os_dia_df["Data_fmt"] == clicked_fmt]
-            if not match.empty:
-                selected_dia = match.iloc[0]["Data"]
+        if event and hasattr(event, "selection") and event.selection and event.selection.points:
+            clicked_fmt = event.selection.points[0].get("x")
+            if clicked_fmt:
+                match = os_dia_df[os_dia_df["Data_fmt"] == clicked_fmt]
+                if not match.empty:
+                    selected_dia = match.iloc[0]["Data"]
 
-# ---------------------------------------------------------------------------
-# Filtro por dia (aplicado nas secoes abaixo)
-# ---------------------------------------------------------------------------
-if selected_dia is not None:
-    df_dia = df_view[df_view["Data Tramite"].dt.date == selected_dia]
-    dia_label = selected_dia.strftime("%d/%m/%Y")
-    st.markdown(
-        '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,0.12);'
-        'border:1px solid rgba(0,212,170,0.3);border-radius:20px;padding:6px 16px;margin:4px 0 12px 0;">'
-        '<span style="color:#00D4AA;font-size:13px;font-weight:600;">'
-        '\U0001f4c5 Filtrado por: ' + dia_label + '</span>'
-        '<span style="color:rgba(255,255,255,0.4);font-size:11px;">Clique novamente na barra para limpar</span>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-else:
-    df_dia = df_view
-
-total_filtrado = len(df_dia)
-
-st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
-
-# ---------------------------------------------------------------------------
-# Quantidade por tipo de servico - Grafico de barras horizontal amarelo
-# ---------------------------------------------------------------------------
-titulo_tipo = "Distribuição por Tipo de Serviço"
-if selected_dia is not None:
-    titulo_tipo += " — " + selected_dia.strftime("%d/%m/%Y")
-st.markdown(f'<div class="section-title">{titulo_tipo}</div>', unsafe_allow_html=True)
-
-tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
-max_count = tipo_counts.max() if not tipo_counts.empty else 1
-
-if tipo_counts.empty:
-    st.caption("Nenhuma OS para esta data.")
-else:
-    for tipo, count in tipo_counts.items():
-        pct = (count / total_filtrado) * 100 if total_filtrado > 0 else 0
-        bar_width = (count / max_count) * 100
+    # ---------------------------------------------------------------------------
+    # Filtro por dia (aplicado nas secoes abaixo)
+    # ---------------------------------------------------------------------------
+    if selected_dia is not None:
+        df_dia = df_view[df_view["Data Tramite"].dt.date == selected_dia]
+        dia_label = selected_dia.strftime("%d/%m/%Y")
         st.markdown(
-            '<div style="margin-bottom: 10px;">'
-            '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">'
-            f'<span style="color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;">{tipo}</span>'
-            f'<span style="color: #FFB347; font-size: 14px; font-weight: 700;">{count} '
-            f'<span style="font-size:11px; color: rgba(255,255,255,0.4);">({pct:.1f}%)</span></span>'
-            '</div>'
-            '<div style="background: rgba(255,255,255,0.06); border-radius: 6px; height: 28px; overflow: hidden;">'
-            f'<div style="background: linear-gradient(90deg, #FF9A2E, #FFB347); width: {bar_width}%;'
-            ' height: 100%; border-radius: 6px; transition: width 0.5s ease;"></div>'
-            '</div>'
+            '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,0.12);'
+            'border:1px solid rgba(0,212,170,0.3);border-radius:20px;padding:6px 16px;margin:4px 0 12px 0;">'
+            '<span style="color:#00D4AA;font-size:13px;font-weight:600;">'
+            '\U0001f4c5 Filtrado por: ' + dia_label + '</span>'
+            '<span style="color:rgba(255,255,255,0.4);font-size:11px;">Clique novamente na barra para limpar</span>'
             '</div>',
             unsafe_allow_html=True,
         )
+    else:
+        df_dia = df_view
 
-st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
+    total_filtrado = len(df_dia)
 
-# ---------------------------------------------------------------------------
-# Mapa de cobertura do RS
-# ---------------------------------------------------------------------------
-st.markdown('<div class="section-title">Mapa de Cobertura</div>', unsafe_allow_html=True)
+    st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
-if is_todos:
-    modo_mapa = st.radio(
-        "Modo do mapa",
-        ["Onde esta o atraso", "Por responsavel"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="modo_mapa",
-    )
-else:
-    modo_mapa = "Onde esta o atraso"
-
-fig_mapa, nota_mapa = build_mapa(df_dia, selected_colab, is_todos, modo_mapa)
-
-if fig_mapa is None:
-    st.caption(nota_mapa or "Mapa indisponivel.")
-else:
-    st.plotly_chart(fig_mapa, use_container_width=True, config={"displayModeBar": False})
-    legenda = "Passe o mouse sobre um municipio para ver cidade, responsavel e OS."
-    if nota_mapa:
-        legenda = nota_mapa + " · " + legenda
-    st.caption(legenda)
-
-st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
-
-# ---------------------------------------------------------------------------
-# Tabela e Download (colaborador selecionado OU dia selecionado)
-# ---------------------------------------------------------------------------
-show_table = (not is_todos or selected_dia is not None) and not df_dia.empty
-
-if show_table:
-    titulo_tabela = "Detalhamento"
-    if not is_todos:
-        titulo_tabela += " — " + selected_colab.split("(")[0].strip()
+    # ---------------------------------------------------------------------------
+    # Quantidade por tipo de servico - Grafico de barras horizontal amarelo
+    # ---------------------------------------------------------------------------
+    titulo_tipo = "Distribuição por Tipo de Serviço"
     if selected_dia is not None:
-        titulo_tabela += " — " + selected_dia.strftime("%d/%m/%Y")
-    st.markdown(f'<div class="section-title">{titulo_tabela}</div>', unsafe_allow_html=True)
+        titulo_tipo += " — " + selected_dia.strftime("%d/%m/%Y")
+    st.markdown(f'<div class="section-title">{titulo_tipo}</div>', unsafe_allow_html=True)
 
-    display_cols = [
-        "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
-        "Tipo de Solicitação", "Data Tramite", "Data Pedido",
-    ]
-    available_cols = [c for c in display_cols if c in df_dia.columns]
-    df_display = df_dia[available_cols].copy()
-    df_display = df_display.sort_values("Data Tramite", ascending=True)
+    tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
+    max_count = tipo_counts.max() if not tipo_counts.empty else 1
 
-    for col in ["Data Tramite", "Data Pedido"]:
-        if col in df_display.columns:
-            df_display[col] = df_display[col].dt.strftime("%d/%m/%Y %H:%M")
+    if tipo_counts.empty:
+        st.caption("Nenhuma OS para esta data.")
+    else:
+        for tipo, count in tipo_counts.items():
+            pct = (count / total_filtrado) * 100 if total_filtrado > 0 else 0
+            bar_width = (count / max_count) * 100
+            st.markdown(
+                '<div style="margin-bottom: 10px;">'
+                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">'
+                f'<span style="color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;">{tipo}</span>'
+                f'<span style="color: #FFB347; font-size: 14px; font-weight: 700;">{count} '
+                f'<span style="font-size:11px; color: rgba(255,255,255,0.4);">({pct:.1f}%)</span></span>'
+                '</div>'
+                '<div style="background: rgba(255,255,255,0.06); border-radius: 6px; height: 28px; overflow: hidden;">'
+                f'<div style="background: linear-gradient(90deg, #FF9A2E, #FFB347); width: {bar_width}%;'
+                ' height: 100%; border-radius: 6px; transition: width 0.5s ease;"></div>'
+                '</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
-    st.dataframe(
-        df_display,
-        use_container_width=True,
-        height=min(38 + 4 * 35, 38 + len(df_display) * 35),
-        hide_index=True,
-    )
+    st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
+    # ---------------------------------------------------------------------------
+    # Tabela e Download (colaborador selecionado OU dia selecionado)
+    # ---------------------------------------------------------------------------
+    show_table = (not is_todos or selected_dia is not None) and not df_dia.empty
 
-    excel_data = to_excel_download(df_dia)
-    label_parts = ["Baixar Excel"]
-    if not is_todos:
-        label_parts.append(selected_colab.split("(")[0].strip())
-    if selected_dia is not None:
-        label_parts.append(selected_dia.strftime("%d/%m"))
-    download_label = " - ".join(label_parts)
+    if show_table:
+        titulo_tabela = "Detalhamento"
+        if not is_todos:
+            titulo_tabela += " — " + selected_colab.split("(")[0].strip()
+        if selected_dia is not None:
+            titulo_tabela += " — " + selected_dia.strftime("%d/%m/%Y")
+        st.markdown(f'<div class="section-title">{titulo_tabela}</div>', unsafe_allow_html=True)
 
-    fname_parts = ["OS"]
-    if not is_todos:
-        fname_parts.append(selected_colab.replace(" ", "_"))
-    if selected_dia is not None:
-        fname_parts.append(selected_dia.strftime("%Y%m%d"))
-    fname_parts.append(datetime.now(BR_TZ).strftime("%H%M"))
-    download_fname = "_".join(fname_parts) + ".xlsx"
+        display_cols = [
+            "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
+            "Tipo de Solicitação", "Data Tramite", "Data Pedido",
+        ]
+        available_cols = [c for c in display_cols if c in df_dia.columns]
+        df_display = df_dia[available_cols].copy()
+        df_display = df_display.sort_values("Data Tramite", ascending=True)
 
-    downloaded = st.download_button(
-        label=download_label,
-        data=excel_data,
-        file_name=download_fname,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key=f"btn_download_{hash(str(selected_colab) + str(selected_dia)) % 99999}",
-        use_container_width=True,
-    )
-    if downloaded and not is_todos:
-        add_audit_entry(selected_colab, "download")
+        for col in ["Data Tramite", "Data Pedido"]:
+            if col in df_display.columns:
+                df_display[col] = df_display[col].dt.strftime("%d/%m/%Y %H:%M")
+
+        st.dataframe(
+            df_display,
+            use_container_width=True,
+            height=min(38 + 4 * 35, 38 + len(df_display) * 35),
+            hide_index=True,
+        )
+
+        st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
+
+        excel_data = to_excel_download(df_dia)
+        label_parts = ["Baixar Excel"]
+        if not is_todos:
+            label_parts.append(selected_colab.split("(")[0].strip())
+        if selected_dia is not None:
+            label_parts.append(selected_dia.strftime("%d/%m"))
+        download_label = " - ".join(label_parts)
+
+        fname_parts = ["OS"]
+        if not is_todos:
+            fname_parts.append(selected_colab.replace(" ", "_"))
+        if selected_dia is not None:
+            fname_parts.append(selected_dia.strftime("%Y%m%d"))
+        fname_parts.append(datetime.now(BR_TZ).strftime("%H%M"))
+        download_fname = "_".join(fname_parts) + ".xlsx"
+
+        downloaded = st.download_button(
+            label=download_label,
+            data=excel_data,
+            file_name=download_fname,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"btn_download_{hash(str(selected_colab) + str(selected_dia)) % 99999}",
+            use_container_width=True,
+        )
+        if downloaded and not is_todos:
+            add_audit_entry(selected_colab, "download")
+
+
+# ---------------------------------------------------------------------------
+# Base do mapa: respeita tipo e dia, mas nao o colaborador
+# (o mapa tem o proprio seletor no painel da esquerda)
+# ---------------------------------------------------------------------------
+df_mapa = df
+if selected_tipo != "Todos":
+    df_mapa = df_mapa[df_mapa["Tipo de Solicitação"] == selected_tipo]
+if selected_dia is not None:
+    df_mapa = df_mapa[df_mapa["Data Tramite"].dt.date == selected_dia]
+
+with tab_mapa:
+    col_filtro, col_mapa = st.columns([1, 3.4], gap="medium")
+
+    with col_filtro:
+        st.markdown(
+            '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
+            ' text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Visualizar</p>',
+            unsafe_allow_html=True,
+        )
+        modo_mapa = st.radio(
+            "Modo do mapa",
+            ["Por responsavel", "Onde esta o atraso"],
+            label_visibility="collapsed",
+            key="modo_mapa",
+        )
+
+        resumo = mapa_resumo(df_mapa)
+        opcoes_mapa = ["Todos"] + [r[0] for r in resumo]
+
+        def _rotulo_mapa(nome):
+            if nome == "Todos":
+                return "Todos"
+            for n, curto, _c, nc, nos in resumo:
+                if n == nome:
+                    return f"{curto}  ({nos})"
+            return nome
+
+        st.markdown(
+            '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
+            ' text-transform: uppercase; letter-spacing: 1px; margin: 12px 0 4px 0;">Colaborador</p>',
+            unsafe_allow_html=True,
+        )
+        foco_mapa = st.radio(
+            "Colaborador do mapa",
+            opcoes_mapa,
+            format_func=_rotulo_mapa,
+            label_visibility="collapsed",
+            key="foco_mapa",
+        )
+
+        # Chave de cores (so faz sentido na visao por responsavel)
+        if foco_mapa == "Todos" and modo_mapa == "Por responsavel" and resumo:
+            chave = ['<div style="margin-top:14px">']
+            for _n, curto, cor, n_cid, n_os in resumo:
+                chave.append(
+                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">'
+                    f'<span style="width:11px;height:11px;border-radius:3px;background:{cor};'
+                    'flex:0 0 auto;"></span>'
+                    f'<span style="color:rgba(255,255,255,0.82);font-size:11px;line-height:1.25;">{curto}'
+                    f'<br><span style="color:rgba(255,255,255,0.38);font-size:10px;">'
+                    f'{n_cid} cidades &middot; {n_os} OS</span></span></div>'
+                )
+            chave.append("</div>")
+            st.markdown("".join(chave), unsafe_allow_html=True)
+
+    with col_mapa:
+        fig_mapa, nota_mapa = build_mapa(df_mapa, foco_mapa, modo_mapa)
+        if fig_mapa is None:
+            st.caption(nota_mapa or "Mapa indisponivel.")
+        else:
+            st.plotly_chart(
+                fig_mapa,
+                use_container_width=True,
+                config={"displayModeBar": False},
+                key="mapa_rs",
+            )
+            legenda = "Passe o mouse sobre um municipio para ver cidade, responsavel e OS."
+            if nota_mapa:
+                legenda = nota_mapa + " · " + legenda
+            st.caption(legenda)
 
 # ===========================================================================
 # PAINEL ADMINISTRATIVO
