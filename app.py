@@ -605,19 +605,43 @@ def distribute_os(df):
     return distribution
 
 
+# Colunas que aparecem na tabela da tela e saem no Excel, nesta ordem.
+# A extracao do SCAE traz muita coluna que o pessoal nao usa.
+COLUNAS_EXPORT = [
+    "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
+    "Tipo de Solicitação", "Data Tramite", "Data Pedido",
+]
+COLUNAS_DATA = ["Data Tramite", "Data Pedido"]
+
+
 def to_excel_download(df):
+    """Exporta so as colunas da tela, na mesma ordem e ordenadas por tramite.
+
+    As datas saem como data de verdade (nao texto), para continuar dando
+    para ordenar e filtrar no Excel, com a aparencia dd/mm/aaaa hh:mm.
+    """
+    cols = [c for c in COLUNAS_EXPORT if c in df.columns]
+    saida = df[cols].copy() if cols else df.copy()
+    if "Data Tramite" in saida.columns:
+        saida = saida.sort_values("Data Tramite", ascending=True)
+
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="OS")
-        worksheet = writer.sheets["OS"]
-        for i, col in enumerate(df.columns):
+    # datetime_format no writer: o pandas escreve cada celula de data com
+    # formato proprio, que vence o formato da coluna.
+    with pd.ExcelWriter(output, engine="xlsxwriter",
+                        datetime_format="dd/mm/yyyy hh:mm") as writer:
+        saida.to_excel(writer, index=False, sheet_name="OS")
+        aba = writer.sheets["OS"]
+        for i, col in enumerate(saida.columns):
             # pandas 3: astype(str) preserva NA, entao uma coluna toda vazia
             # devolve NaN aqui e o xlsxwriter rejeita a largura.
-            maior = df[col].astype(str).str.len().max()
+            maior = saida[col].astype(str).str.len().max()
             if pd.isna(maior):
                 maior = 0
-            max_len = min(max(int(maior), len(str(col))) + 2, 50)
-            worksheet.set_column(i, i, max_len)
+            larg = min(max(int(maior), len(str(col))) + 2, 50)
+            if col in COLUNAS_DATA:
+                larg = max(larg, 18)
+            aba.set_column(i, i, larg)
     return output.getvalue()
 
 
@@ -1373,11 +1397,7 @@ with tab_acomp:
             titulo_tabela += " — " + selected_dia.strftime("%d/%m/%Y")
         st.markdown(f'<div class="section-title">{titulo_tabela}</div>', unsafe_allow_html=True)
 
-        display_cols = [
-            "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
-            "Tipo de Solicitação", "Data Tramite", "Data Pedido",
-        ]
-        available_cols = [c for c in display_cols if c in df_dia.columns]
+        available_cols = [c for c in COLUNAS_EXPORT if c in df_dia.columns]
         df_display = df_dia[available_cols].copy()
         df_display = df_display.sort_values("Data Tramite", ascending=True)
 
