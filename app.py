@@ -8,6 +8,7 @@ BR_TZ = timezone(timedelta(hours=-3))
 from PIL import Image
 import json
 import os
+import re
 import unicodedata
 
 icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
@@ -255,18 +256,34 @@ st.markdown("""
 # Exemplo: "Nome": [1, 2, 3, 10, 15]
 # ---------------------------------------------------------------------------
 COLABORADORES_ZONAS = {
-    "AMANDA BARCELLOS (AMANDA.BARCELLOS)": [8, 11, 15, 21, 23, 24, 35, 43, 47, 49, 66, 72, 83, 84, 85, 86, 87, 90, 95, 98, 108, 118, 131, 135, 136, 137, 139, 140, 141, 150, 161, 167, 175, 193, 200, 205, 214, 223, 237, 262, 270, 276, 289, 297, 412, 413, 425, 445, 451, 458, 465],
-    "CAROLINE DE OLIVEIRA SANTOS (CAROLINE.OSANTOS)": [6, 10, 17, 18, 32, 37, 48, 50, 53, 58, 61, 67, 74, 75, 76, 77, 78, 80, 89, 91, 93, 103, 104, 109, 111, 113, 117, 120, 121, 123, 124, 125, 128, 133, 144, 146, 147, 151, 158, 168, 170, 171, 176, 197, 207, 211, 212, 215, 216, 218, 219, 235, 238, 240, 251, 280, 295, 299, 405, 418, 420, 421, 429, 435, 447, 455, 460, 499],
-    "CLEVER FANFA SARMENTO JUNIOR (CLEVER.JUNIOR)": [82, 239],
-    "ELIANA CATARINA BALOK CHAGAS (ELIANA.CHAGAS)": [31, 45],
-    "FELIPE KENNE DE OLIVEIRA (FELIPE.KENNE)": [9, 14, 34, 44, 56, 64, 69, 100, 114, 152, 153, 156, 157, 165, 184, 196, 198, 258, 281, 283, 423, 466],
-    "GABRIEL GODOI TEIXEIRA (GABRIEL.GODOI)": [5, 25, 28, 29, 70, 73, 110, 115, 119, 122, 162, 173, 180, 185, 191, 192, 208, 277, 279, 296, 433, 438, 497],
-    "HELLEN SCHIMIDT DIAS (HELLEN.DIAS)": [7, 97],
-    "IGOR MARTINI RODRIGUES (IGOR.MARTINI)": [12, 19, 27, 38, 54, 68, 81, 92, 106, 129, 169, 181, 195, 209, 221, 222, 228, 249, 275, 285, 292, 311, 403, 404, 416, 439, 444, 446, 463],
-    "JULIA DA SILVA FLORES (JULIA.SFLORES)": [2, 4, 22, 26, 33, 36, 39, 40, 42, 51, 52, 55, 59, 60, 62, 63, 65, 79, 94, 99, 101, 102, 105, 107, 130, 148, 154, 159, 160, 163, 174, 177, 182, 186, 188, 189, 190, 199, 201, 202, 213, 220, 224, 229, 230, 231, 233, 241, 242, 256, 261, 286, 293, 409, 411, 426, 432, 441, 442, 443, 461],
+    "AMANDA BARCELLOS (AMANDA.BARCELLOS)": [],
+    "CAROLINE DE OLIVEIRA SANTOS (CAROLINE.OSANTOS)": [10, 17, 35, 49, 58, 67, 75, 76, 80, 84, 90, 91, 95, 98, 103, 109, 113, 120, 121, 124, 125, 133, 135, 141, 144, 147, 150, 151, 175, 197, 207, 212, 214, 215, 219, 235, 237, 295, 297, 405, 412, 413, 418, 421, 429, 447, 451, 455],
+    "CLEVER FANFA SARMENTO JUNIOR (CLEVER.JUNIOR)": [82, 210, 239],
+    "DAIANE BARROS DE OLIVEIRA (DAIANE.BARROS)": [6, 8, 18, 21, 23, 32, 37, 43, 50, 61, 74, 77, 78, 86, 89, 93, 104, 111, 117, 123, 128, 136, 139, 140, 158, 168, 170, 171, 176, 193, 200, 211, 216, 238, 240, 251, 262, 270, 280, 289, 299, 420, 435, 445, 458, 460, 499],
+    "ELIANA CATARINA BALOK CHAGAS (ELIANA.CHAGAS)": [31, 45, 96],
+    "FELIPE KENNE DE OLIVEIRA (FELIPE.KENNE)": [9, 12, 14, 19, 34, 44, 47, 54, 56, 64, 68, 69, 100, 106, 114, 129, 131, 152, 153, 156, 157, 184, 196, 198, 205, 209, 228, 249, 258, 277, 281, 283, 292, 311, 423, 439, 446, 463, 466],
+    "GABRIEL GODOI TEIXEIRA (GABRIEL.GODOI)": [4, 5, 22, 25, 26, 29, 33, 36, 39, 42, 52, 55, 62, 63, 70, 94, 99, 101, 102, 110, 115, 122, 130, 159, 160, 162, 163, 173, 182, 185, 186, 188, 189, 190, 191, 192, 199, 201, 202, 208, 224, 229, 230, 231, 233, 242, 256, 279, 293, 296, 409, 411, 426, 433, 438, 441, 442, 443, 461],
+    "HELLEN SCHIMIDT DIAS (HELLEN.DIAS)": [7, 97, 294],
+    "IGOR MARTINI RODRIGUES (IGOR.MARTINI)": [27, 38, 81, 85, 92, 165, 169, 181, 195, 221, 222, 275, 285, 403, 404, 416, 444],
+    "JULIA DA SILVA FLORES (JULIA.SFLORES)": [2, 15, 20, 28, 40, 53, 59, 60, 65, 66, 71, 72, 79, 88, 105, 116, 118, 146, 149, 161, 166, 167, 177, 178, 179, 204, 206, 218, 232, 248, 276, 284, 286, 406, 410, 432, 465, 497],
     "MAYARA AMARAL DORNELLES (MAYARA.DORNELLES)": [46, 57, 132, 143, 145, 155, 187, 225, 226, 227, 245, 263, 272, 298, 414, 415, 430],
-    "PEDRO ARTHUR ALVES DE FREITAS (PEDRO.FFREITAS)": [96, 210, 294],
-    "PRISCILA DA SILVA LIMA (PRISCILA.LIMA)": [1, 13, 20, 30, 41, 71, 88, 116, 127, 138, 149, 164, 166, 178, 179, 204, 206, 217, 232, 236, 248, 250, 269, 284, 406, 410, 422, 467],
+    "PEDRO ARTHUR ALVES DE FREITAS (PEDRO.FFREITAS)": [],
+    "PRISCILA DA SILVA LIMA (PRISCILA.LIMA)": [1, 11, 13, 24, 30, 41, 48, 51, 73, 83, 87, 107, 108, 119, 127, 137, 138, 148, 154, 164, 174, 180, 213, 217, 220, 223, 236, 241, 250, 261, 269, 422, 425, 467],
+}
+
+# Tipos de servico com dono exclusivo, independentemente da zona da OS.
+# 106008 Erro de Leitura e 206006 Retificacao de Disponibilidade: Pedro e
+# Amanda, divididos por regiao (ESPECIALISTA_ZONAS logo abaixo).
+CODIGOS_ESPECIALISTA = {"106008", "206006"}
+
+# 112001 Devolucao de Valores - Ligacao: so da Daiane, no estado todo.
+CODIGOS_EXCLUSIVOS = {
+    "112001": "DAIANE BARROS DE OLIVEIRA (DAIANE.BARROS)",
+}
+
+ESPECIALISTA_ZONAS = {
+    "AMANDA BARCELLOS (AMANDA.BARCELLOS)": [1, 2, 4, 5, 6, 8, 10, 11, 13, 15, 17, 18, 20, 21, 22, 23, 24, 25, 26, 28, 29, 30, 32, 33, 35, 36, 37, 39, 40, 41, 42, 43, 48, 49, 50, 51, 52, 53, 55, 58, 59, 60, 61, 62, 63, 65, 66, 67, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 83, 84, 86, 87, 88, 89, 90, 91, 93, 94, 95, 98, 99, 101, 102, 103, 104, 105, 107, 108, 109, 110, 111, 113, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 127, 128, 130, 133, 135, 136, 137, 138, 139, 140, 141, 144, 146, 147, 148, 149, 150, 151, 154, 158, 159, 160, 161, 162, 163, 164, 166, 167, 168, 170, 171, 173, 174, 175, 176, 177, 178, 179, 180, 182, 185, 186, 188, 189, 190, 191, 192, 193, 197, 199, 200, 201, 202, 204, 206, 207, 208, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 223, 224, 229, 230, 231, 232, 233, 235, 236, 237, 238, 240, 241, 242, 248, 250, 251, 256, 261, 262, 269, 270, 276, 279, 280, 284, 286, 289, 293, 295, 296, 297, 299, 405, 406, 409, 410, 411, 412, 413, 418, 420, 421, 422, 425, 426, 429, 432, 433, 435, 438, 441, 442, 443, 445, 447, 451, 455, 458, 460, 461, 465, 467, 497, 499],
+    "PEDRO ARTHUR ALVES DE FREITAS (PEDRO.FFREITAS)": [7, 9, 12, 14, 19, 27, 31, 34, 38, 44, 45, 46, 47, 54, 56, 57, 64, 68, 69, 81, 82, 85, 92, 96, 97, 100, 106, 114, 129, 131, 132, 143, 145, 152, 153, 155, 156, 157, 165, 169, 181, 184, 187, 195, 196, 198, 205, 209, 210, 221, 222, 225, 226, 227, 228, 239, 245, 249, 258, 263, 272, 275, 277, 281, 283, 285, 292, 294, 298, 311, 403, 404, 414, 415, 416, 423, 430, 439, 444, 446, 463, 466],
 }
 
 # ---------------------------------------------------------------------------
@@ -432,8 +449,75 @@ def save_absence_config(config):
         json.dump(config, f, ensure_ascii=False, indent=2)
 
 
+def _codigo_inicial(valor):
+    """Pega o codigo numerico que abre o campo: '106008' ou '106008 - ERRO...'."""
+    m = re.match(r"\s*(\d{4,8})\b", str(valor))
+    return m.group(1) if m else None
+
+
+def detectar_coluna_codigo(df):
+    """Descobre em qual coluna vem o codigo do tipo de servico.
+
+    A extracao do SCAE pode trazer o codigo numa coluna propria ou junto do
+    nome do tipo. Procuramos a coluna que contenha os codigos de regra
+    exclusiva e tenha poucos valores distintos (tipo de servico e uma lista
+    curta; numero de OS nao e).
+    """
+    procurados = CODIGOS_ESPECIALISTA | set(CODIGOS_EXCLUSIVOS)
+    melhor, menos_unicos = None, None
+    for col in df.columns:
+        try:
+            unicos = df[col].dropna().unique()
+        except Exception:
+            continue
+        if len(unicos) == 0 or len(unicos) > 300:
+            continue
+        codigos = {_codigo_inicial(v) for v in unicos}
+        if codigos & procurados:
+            if melhor is None or len(unicos) < menos_unicos:
+                melhor, menos_unicos = col, len(unicos)
+    return melhor
+
+
+# Usado so quando a extracao nao traz o codigo: identifica pelo nome do tipo.
+_TEXTO_DOS_CODIGOS = {
+    "106008": lambda t: "erro" in t and "leitura" in t,
+    "206006": lambda t: ("disponibilidade" in t or "dispensa" in t)
+                        and ("retifica" in t or "esgoto" in t),
+    "112001": lambda t: "devolucao" in t and "valor" in t,
+}
+
+
+def serie_codigos(df):
+    """(codigo do tipo de servico por linha, coluna usada).
+
+    Se a extracao nao trouxer o codigo, deduz pelo nome do tipo de servico.
+    """
+    col = detectar_coluna_codigo(df)
+    if col is not None:
+        return df[col].map(_codigo_inicial), col
+
+    if "Tipo de Solicitação" in df.columns:
+        txt = df["Tipo de Solicitação"].map(norm_cidade)
+
+        def pelo_nome(t):
+            for cod, casa in _TEXTO_DOS_CODIGOS.items():
+                if casa(t):
+                    return cod
+            return None
+
+        return txt.map(pelo_nome), None
+
+    return pd.Series(None, index=df.index, dtype="object"), None
+
+
 def distribute_os(df):
-    """Distribui as OS por colaborador baseado na zona."""
+    """Distribui as OS por colaborador baseado na zona.
+
+    Erro de Leitura e Retificacao de Disponibilidade sao exclusivos de Pedro e
+    Amanda, divididos por regiao, e por isso saem da fila normal antes do
+    rateio por zona.
+    """
     if not COLABORADORES_ZONAS:
         st.warning("Nenhum colaborador cadastrado. Preencha o dicionario COLABORADORES_ZONAS no codigo.")
         return {}
@@ -454,13 +538,52 @@ def distribute_os(df):
 
     distribution = {colab: pd.DataFrame() for colab in active_collabs}
 
+    # Tipos com dono exclusivo saem antes: nao entram no rateio por zona
+    codigos, _col = serie_codigos(df)
+    marca_esp = codigos.isin(CODIGOS_ESPECIALISTA)
+    marca_excl = codigos.isin(CODIGOS_EXCLUSIVOS)
+    df_esp = df[marca_esp]
+    df_normal = df[~(marca_esp | marca_excl)]
+
     for colab, zonas in active_collabs.items():
-        mask = df["Zona Ligacao"].isin(zonas)
-        distribution[colab] = pd.concat([distribution[colab], df[mask]])
+        mask = df_normal["Zona Ligacao"].isin(zonas)
+        distribution[colab] = pd.concat([distribution[colab], df_normal[mask]])
+
+    # Dono unico por tipo, no estado todo (ex.: devolucao de valores -> Daiane)
+    for cod, dono in CODIGOS_EXCLUSIVOS.items():
+        recorte = df[codigos == cod]
+        if recorte.empty:
+            continue
+        alvo = dono
+        if alvo not in distribution:
+            info = absent_collabs.get(alvo, {})
+            alvo = info.get("redirect_to")
+            if alvo not in distribution:
+                alvo = next(iter(distribution), None)
+        if alvo is not None:
+            distribution[alvo] = pd.concat([distribution[alvo], recorte])
+
+    if not df_esp.empty:
+        for colab, zonas in ESPECIALISTA_ZONAS.items():
+            mask = df_esp["Zona Ligacao"].isin(zonas)
+            if colab in distribution:
+                distribution[colab] = pd.concat([distribution[colab], df_esp[mask]])
+                continue
+            # Especialista ausente: a fila dele nao pode sumir. Vai para quem
+            # cobre a ausencia; se nao houver, para o outro especialista.
+            info = absent_collabs.get(colab, {})
+            alvo = info.get("redirect_to")
+            if alvo not in distribution:
+                alvo = next((o for o in ESPECIALISTA_ZONAS
+                             if o != colab and o in distribution), None)
+            if alvo is None:
+                alvo = next(iter(distribution), None)
+            if alvo is not None:
+                distribution[alvo] = pd.concat([distribution[alvo], df_esp[mask]])
 
     for colab, info in absent_collabs.items():
         zonas_ausente = info["zonas"]
-        os_ausente = df[df["Zona Ligacao"].isin(zonas_ausente)]
+        os_ausente = df_normal[df_normal["Zona Ligacao"].isin(zonas_ausente)]
 
         if os_ausente.empty:
             continue
@@ -561,10 +684,27 @@ def load_geojson():
     return geo, key_to_cod, cod_to_nome
 
 
+def zonas_do_colaborador(colab):
+    """Zonas que a pessoa atende.
+
+    Pedro e Amanda nao tem cidades proprias: o territorio deles e a regiao da
+    fila especialista (Erro de Leitura / Retificacao de Disponibilidade).
+    """
+    zonas = COLABORADORES_ZONAS.get(colab) or []
+    if zonas:
+        return zonas
+    return ESPECIALISTA_ZONAS.get(colab, [])
+
+
+def donos_com_cidades():
+    """Quem tem cidades proprias - os que aparecem no mapa por responsavel."""
+    return sorted(c for c, z in COLABORADORES_ZONAS.items() if z)
+
+
 def mapa_cores():
     """Cor fixa por colaborador, por ordem alfabetica (nao muda com filtro)."""
-    nomes = sorted(COLABORADORES_ZONAS.keys())
-    return {n: MAPA_SLOTS[i % len(MAPA_SLOTS)] for i, n in enumerate(nomes)}
+    return {n: MAPA_SLOTS[i % len(MAPA_SLOTS)]
+            for i, n in enumerate(donos_com_cidades())}
 
 
 def mapa_resumo(df_src):
@@ -601,7 +741,7 @@ def mapa_resumo(df_src):
     linhas = [
         (n, n.split("(")[0].strip(), cor_de.get(n, MAPA_OUTROS),
          cidades_de.get(n, 0), os_de.get(n, 0))
-        for n in COLABORADORES_ZONAS
+        for n in donos_com_cidades()
     ]
     linhas.sort(key=lambda r: (-r[4], -r[3]))
     return linhas
@@ -609,7 +749,7 @@ def mapa_resumo(df_src):
 
 def cidades_do_colaborador(df_src, colab):
     """[(cidade, qtd_os)] em ordem alfabetica - a lista de quem cuida do que."""
-    zonas = COLABORADORES_ZONAS.get(colab, [])
+    zonas = zonas_do_colaborador(colab)
     os_por_zona = {}
     if "Zona Ligacao" in df_src.columns:
         for zona, qtd in df_src["Zona Ligacao"].value_counts().items():
@@ -748,6 +888,14 @@ def build_mapa(df_src, foco, modo):
     # ---- Colaborador em foco: destaca o territorio dele, esmaece o resto
     if foco in COLABORADORES_ZONAS:
         meus = [c for c, dono in cod_colab.items() if dono == foco]
+        rotulo_extra = ""
+        if not meus:
+            # Pedro e Amanda: o territorio deles e a regiao da fila especialista
+            zonas_esp = set(ESPECIALISTA_ZONAS.get(foco, []))
+            alvo = {norm_cidade(ZONA_CIDADE[z]) for z in zonas_esp if z in ZONA_CIDADE}
+            meus = [c for c in cod_colab
+                    if norm_cidade(cod_to_nome.get(c, "")) in alvo]
+            rotulo_extra = " (Erro de Leitura + Retif. de Disponibilidade)"
         outros = [c for c in cod_colab if c not in set(meus)]
         if not meus:
             return None, "Este colaborador nao tem zonas mapeadas."
@@ -790,7 +938,7 @@ def build_mapa(df_src, foco, modo):
         lon_r, lat_r = _limites(meus, centros)
         total_meu = sum(cod_os.get(c, 0) for c in meus)
         return (mapa_layout(fig, lon_r, lat_r),
-                f"{curto}: {len(meus)} cidades, {total_meu} OS")
+                f"{curto}{rotulo_extra}: {len(meus)} cidades, {total_meu} OS")
 
     # ---- Visao Todos: por volume de OS
     if modo == "Onde esta o atraso":
