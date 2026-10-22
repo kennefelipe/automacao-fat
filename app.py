@@ -668,7 +668,7 @@ if "df_loaded" not in st.session_state:
 # ---------------------------------------------------------------------------
 # Logo (carregada uma vez e cacheada)
 # ---------------------------------------------------------------------------
-LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-faturamento-opcao1-branco.png")
+LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-hub-operacional.png")
 ICONE_FAT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-sidebar.png")
 GEOJSON_RS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "rs_municipios.json")
 
@@ -1183,7 +1183,10 @@ distribution = distribute_os(df)
 logo = load_logo(LOGO_PATH)
 
 if logo is not None:
-    st.image(logo, width=400)
+    # centraliza a logo: a coluna do meio e a unica que recebe conteudo
+    _esq, _meio, _dir = st.columns([1, 2, 1])
+    with _meio:
+        st.image(logo, use_container_width=True)
 
 st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
