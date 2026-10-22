@@ -688,7 +688,7 @@ def mapa_layout(fig, lon_range=None, lat_range=None):
         plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=0, r=0, t=0, b=0),
         height=720,
-        dragmode=False,
+        dragmode="pan",
         showlegend=False,
         font=dict(color="#c3c2b7", size=12),
     )
@@ -766,9 +766,9 @@ def build_mapa(df_src, foco, modo):
             marker=dict(line=dict(color="#ffffff", width=0.7)),
             colorbar=dict(
                 title=dict(text="OS", font=dict(color="#c3c2b7", size=11)),
-                tickfont=dict(color="#c3c2b7", size=10),
-                thickness=12, len=0.45, x=0.99, y=0.25, outlinewidth=0,
-                tickformat="d",
+                tickfont=dict(color="#c3c2b7", size=11),
+                thickness=18, len=0.92, x=0.99, y=0.5, yanchor="middle",
+                outlinewidth=0, tickformat="d",
             ),
             hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]} OS<extra></extra>",
         ))
@@ -803,9 +803,9 @@ def build_mapa(df_src, foco, modo):
             marker=dict(line=dict(color=MAPA_BORDA, width=0.4)),
             colorbar=dict(
                 title=dict(text="OS", font=dict(color="#c3c2b7", size=11)),
-                tickfont=dict(color="#c3c2b7", size=10),
-                thickness=12, len=0.45, x=0.99, y=0.25, outlinewidth=0,
-                tickformat="d",
+                tickfont=dict(color="#c3c2b7", size=11),
+                thickness=18, len=0.92, x=0.99, y=0.5, yanchor="middle",
+                outlinewidth=0, tickformat="d",
             ),
             hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}<br>%{customdata[2]} OS<extra></extra>",
         ))
@@ -1360,7 +1360,11 @@ with tab_mapa:
             st.plotly_chart(
                 fig_mapa,
                 use_container_width=True,
-                config={"displayModeBar": False},
+                config={
+                    "scrollZoom": True,
+                    "displayModeBar": False,
+                    "doubleClick": "reset",
+                },
                 key="mapa_rs",
             )
 
