@@ -40,6 +40,13 @@ st.markdown("""
         background: linear-gradient(135deg, #0A1628 0%, #0F2044 50%, #0A1628 100%);
     }
 
+    /* Encosta o conteudo mais no topo, para a logo subir na tela */
+    .stMainBlockContainer,
+    div[data-testid="stMainBlockContainer"],
+    section.main > div.block-container {
+        padding-top: 1.6rem;
+    }
+
     /* Sidebar */
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, #0D1B2E 0%, #162D50 100%);
@@ -1188,7 +1195,8 @@ if logo is not None:
     with _meio:
         st.image(logo, use_container_width=True)
 
-st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
+# folga entre a logo e os cards
+st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
 
 is_todos = (selected_colab == "Todos")
 
