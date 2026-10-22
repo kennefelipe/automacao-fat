@@ -605,13 +605,82 @@ def mapa_resumo(df_src):
     return linhas
 
 
-def mapa_layout(fig):
-    fig.update_geos(
-        visible=False,
-        fitbounds="locations",
-        projection_type="mercator",
-        bgcolor="rgba(0,0,0,0)",
-    )
+def cidades_do_colaborador(df_src, colab):
+    """[(cidade, qtd_os)] em ordem alfabetica - a lista de quem cuida do que."""
+    zonas = COLABORADORES_ZONAS.get(colab, [])
+    os_por_zona = {}
+    if "Zona Ligacao" in df_src.columns:
+        for zona, qtd in df_src["Zona Ligacao"].value_counts().items():
+            try:
+                os_por_zona[int(zona)] = int(qtd)
+            except (TypeError, ValueError):
+                continue
+    linhas = {}
+    for z in zonas:
+        cidade = ZONA_CIDADE.get(z)
+        if cidade:
+            linhas[cidade] = linhas.get(cidade, 0) + os_por_zona.get(z, 0)
+    return sorted(linhas.items(), key=lambda r: norm_cidade(r[0]))
+
+
+def _pontos(coords):
+    if coords and isinstance(coords[0], (int, float)):
+        yield coords
+    else:
+        for c in coords:
+            yield from _pontos(c)
+
+
+@st.cache_data
+def mapa_centroides():
+    """{codigo: (lon, lat)} - centro aproximado de cada municipio, para rotulos."""
+    geo, _, _ = load_geojson()
+    if geo is None:
+        return {}
+    centros = {}
+    for feat in geo["features"]:
+        pts = list(_pontos(feat["geometry"]["coordinates"]))
+        if not pts:
+            continue
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        centros[feat["properties"]["codarea"]] = (
+            (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        )
+    return centros
+
+
+def _limites(cods, centros, margem=0.35):
+    """Janela de visualizacao que cobre os municipios, com uma folga em volta."""
+    pts = [centros[c] for c in cods if c in centros]
+    if not pts:
+        return None, None
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    larg = max(max(xs) - min(xs), 0.5)
+    alt = max(max(ys) - min(ys), 0.5)
+    folga_x = larg * margem + 0.25
+    folga_y = alt * margem + 0.25
+    return ([min(xs) - folga_x, max(xs) + folga_x],
+            [min(ys) - folga_y, max(ys) + folga_y])
+
+
+def mapa_layout(fig, lon_range=None, lat_range=None):
+    if lon_range and lat_range:
+        fig.update_geos(
+            visible=False,
+            lonaxis_range=lon_range,
+            lataxis_range=lat_range,
+            projection_type="mercator",
+            bgcolor="rgba(0,0,0,0)",
+        )
+    else:
+        fig.update_geos(
+            visible=False,
+            fitbounds="locations",
+            projection_type="mercator",
+            bgcolor="rgba(0,0,0,0)",
+        )
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -697,11 +766,29 @@ def build_mapa(df_src, foco, modo):
                 title=dict(text="OS", font=dict(color="#c3c2b7", size=11)),
                 tickfont=dict(color="#c3c2b7", size=10),
                 thickness=12, len=0.45, x=0.99, y=0.25, outlinewidth=0,
+                tickformat="d",
             ),
             hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]} OS<extra></extra>",
         ))
+
+        # Nomes das cidades sobre o territorio, para saberem quais sao as suas
+        centros = mapa_centroides()
+        com_centro = [c for c in meus if c in centros]
+        if com_centro:
+            fig.add_trace(go.Scattergeo(
+                lon=[centros[c][0] for c in com_centro],
+                lat=[centros[c][1] for c in com_centro],
+                text=[cod_to_nome[c] for c in com_centro],
+                mode="text",
+                textfont=dict(color="#ffffff", size=9, family="sans-serif"),
+                textposition="middle center",
+                hoverinfo="skip", showlegend=False,
+            ))
+
+        lon_r, lat_r = _limites(meus, centros)
         total_meu = sum(cod_os.get(c, 0) for c in meus)
-        return mapa_layout(fig), f"{curto}: {len(meus)} cidades, {total_meu} OS"
+        return (mapa_layout(fig, lon_r, lat_r),
+                f"{curto}: {len(meus)} cidades, {total_meu} OS")
 
     # ---- Visao Todos: por volume de OS
     if modo == "Onde esta o atraso":
@@ -716,6 +803,7 @@ def build_mapa(df_src, foco, modo):
                 title=dict(text="OS", font=dict(color="#c3c2b7", size=11)),
                 tickfont=dict(color="#c3c2b7", size=10),
                 thickness=12, len=0.45, x=0.99, y=0.25, outlinewidth=0,
+                tickformat="d",
             ),
             hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}<br>%{customdata[2]} OS<extra></extra>",
         ))
@@ -1236,8 +1324,32 @@ with tab_mapa:
                 )
             st.markdown("".join(chave), unsafe_allow_html=True)
         elif not is_todos:
-            st.caption("Mostrando a area de " + selected_colab.split("(")[0].strip()
-                       + ". Troque o nome na barra lateral para ver outra area.")
+            lista = cidades_do_colaborador(df_dia, selected_colab)
+            st.markdown(
+                '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
+                ' text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">'
+                f'Suas cidades ({len(lista)})</p>',
+                unsafe_allow_html=True,
+            )
+            itens = []
+            for cidade, qtd in lista:
+                destaque = "rgba(255,255,255,0.82)" if qtd else "rgba(255,255,255,0.45)"
+                badge = (
+                    f'<span style="color:#86b6ef;font-size:10px;font-weight:700;">{qtd}</span>'
+                    if qtd else '<span style="color:rgba(255,255,255,0.25);font-size:10px;">0</span>'
+                )
+                itens.append(
+                    '<div style="display:flex;justify-content:space-between;gap:8px;'
+                    'padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
+                    f'<span style="color:{destaque};font-size:11px;line-height:1.3;">{cidade}</span>'
+                    f'{badge}</div>'
+                )
+            st.markdown(
+                '<div style="max-height:620px;overflow-y:auto;padding-right:6px;">'
+                + "".join(itens) + "</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption("Numero ao lado = OS em aberto. Troque o nome na barra lateral.")
 
     with col_mapa:
         fig_mapa, nota_mapa = build_mapa(df_dia if not is_todos else df_mapa, foco_mapa, modo_mapa)
