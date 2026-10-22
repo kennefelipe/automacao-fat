@@ -488,8 +488,12 @@ def to_excel_download(df):
         df.to_excel(writer, index=False, sheet_name="OS")
         worksheet = writer.sheets["OS"]
         for i, col in enumerate(df.columns):
-            max_len = max(df[col].astype(str).str.len().max(), len(col)) + 2
-            max_len = min(max_len, 50)
+            # pandas 3: astype(str) preserva NA, entao uma coluna toda vazia
+            # devolve NaN aqui e o xlsxwriter rejeita a largura.
+            maior = df[col].astype(str).str.len().max()
+            if pd.isna(maior):
+                maior = 0
+            max_len = min(max(int(maior), len(str(col))) + 2, 50)
             worksheet.set_column(i, i, max_len)
     return output.getvalue()
 
@@ -1191,62 +1195,52 @@ if selected_dia is not None:
     df_mapa = df_mapa[df_mapa["Data Tramite"].dt.date == selected_dia]
 
 with tab_mapa:
-    col_filtro, col_mapa = st.columns([1, 3.4], gap="medium")
+    # O colaborador vem do seletor da sidebar; aqui so escolhemos a leitura do mapa.
+    foco_mapa = "Todos" if is_todos else selected_colab
+
+    col_filtro, col_mapa = st.columns([1, 3.6], gap="medium")
 
     with col_filtro:
-        st.markdown(
-            '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
-            ' text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Visualizar</p>',
-            unsafe_allow_html=True,
-        )
-        modo_mapa = st.radio(
-            "Modo do mapa",
-            ["Por responsavel", "Onde esta o atraso"],
-            label_visibility="collapsed",
-            key="modo_mapa",
-        )
+        if is_todos:
+            st.markdown(
+                '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
+                ' text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Visualizar</p>',
+                unsafe_allow_html=True,
+            )
+            modo_mapa = st.radio(
+                "Modo do mapa",
+                ["Por responsavel", "Onde esta o atraso"],
+                label_visibility="collapsed",
+                key="modo_mapa",
+            )
+        else:
+            modo_mapa = "Por responsavel"
 
-        resumo = mapa_resumo(df_mapa)
-        opcoes_mapa = ["Todos"] + [r[0] for r in resumo]
+        resumo = mapa_resumo(df_mapa) if is_todos else []
 
-        def _rotulo_mapa(nome):
-            if nome == "Todos":
-                return "Todos"
-            for n, curto, _c, nc, nos in resumo:
-                if n == nome:
-                    return f"{curto}  ({nos})"
-            return nome
-
-        st.markdown(
-            '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
-            ' text-transform: uppercase; letter-spacing: 1px; margin: 12px 0 4px 0;">Colaborador</p>',
-            unsafe_allow_html=True,
-        )
-        foco_mapa = st.radio(
-            "Colaborador do mapa",
-            opcoes_mapa,
-            format_func=_rotulo_mapa,
-            label_visibility="collapsed",
-            key="foco_mapa",
-        )
-
-        # Chave de cores (so faz sentido na visao por responsavel)
-        if foco_mapa == "Todos" and modo_mapa == "Por responsavel" and resumo:
-            chave = ['<div style="margin-top:14px">']
+        if is_todos and modo_mapa == "Por responsavel" and resumo:
+            st.markdown(
+                '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
+                ' text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 6px 0;">Responsaveis</p>',
+                unsafe_allow_html=True,
+            )
+            chave = []
             for _n, curto, cor, n_cid, n_os in resumo:
                 chave.append(
-                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">'
+                    '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">'
                     f'<span style="width:11px;height:11px;border-radius:3px;background:{cor};'
-                    'flex:0 0 auto;"></span>'
-                    f'<span style="color:rgba(255,255,255,0.82);font-size:11px;line-height:1.25;">{curto}'
+                    'flex:0 0 auto;margin-top:3px;"></span>'
+                    f'<span style="color:rgba(255,255,255,0.82);font-size:11px;line-height:1.3;">{curto}'
                     f'<br><span style="color:rgba(255,255,255,0.38);font-size:10px;">'
                     f'{n_cid} cidades &middot; {n_os} OS</span></span></div>'
                 )
-            chave.append("</div>")
             st.markdown("".join(chave), unsafe_allow_html=True)
+        elif not is_todos:
+            st.caption("Mostrando a area de " + selected_colab.split("(")[0].strip()
+                       + ". Troque o nome na barra lateral para ver outra area.")
 
     with col_mapa:
-        fig_mapa, nota_mapa = build_mapa(df_mapa, foco_mapa, modo_mapa)
+        fig_mapa, nota_mapa = build_mapa(df_dia if not is_todos else df_mapa, foco_mapa, modo_mapa)
         if fig_mapa is None:
             st.caption(nota_mapa or "Mapa indisponivel.")
         else:
