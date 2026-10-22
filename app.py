@@ -526,7 +526,9 @@ ICONE_FAT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo-sideb
 GEOJSON_RS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "rs_municipios.json")
 
 # Paleta do mapa (validada contra a superficie #0F2044)
-MAPA_RAMPA = ["#1c5cab", "#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6", "#cde2fb"]
+# Marinho -> azul vivo. O topo para em #2367c4 de proposito: acima disso o
+# texto branco dos nomes das cidades deixa de ser legivel sobre o preenchimento.
+MAPA_RAMPA = ["#15406e", "#18477c", "#1a4d8a", "#1c5cab", "#2060b8", "#2367c4"]
 MAPA_SLOTS = ["#3987e5", "#d95926", "#199e70", "#c98500",
               "#d55181", "#008300", "#9085e9", "#e66767",
               "#1f9aa6", "#6f6fd0", "#a8742a", "#c75bbf"]
@@ -650,7 +652,7 @@ def mapa_centroides():
     return centros
 
 
-def _limites(cods, centros, margem=0.35):
+def _limites(cods, centros, margem=0.10):
     """Janela de visualizacao que cobre os municipios, com uma folga em volta."""
     pts = [centros[c] for c in cods if c in centros]
     if not pts:
@@ -1349,7 +1351,6 @@ with tab_mapa:
                 + "".join(itens) + "</div>",
                 unsafe_allow_html=True,
             )
-            st.caption("Numero ao lado = OS em aberto. Troque o nome na barra lateral.")
 
     with col_mapa:
         fig_mapa, nota_mapa = build_mapa(df_dia if not is_todos else df_mapa, foco_mapa, modo_mapa)
@@ -1362,10 +1363,6 @@ with tab_mapa:
                 config={"displayModeBar": False},
                 key="mapa_rs",
             )
-            legenda = "Passe o mouse sobre um municipio para ver cidade, responsavel e OS."
-            if nota_mapa:
-                legenda = nota_mapa + " · " + legenda
-            st.caption(legenda)
 
 # ===========================================================================
 # PAINEL ADMINISTRATIVO
