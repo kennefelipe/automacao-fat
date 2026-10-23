@@ -1132,13 +1132,16 @@ with st.sidebar:
     else:
         selected_colab = "Todos"
 
-    # Filtro por tipo de servico
+    # Filtro por tipo de servico (multiplos; lista vazia = todos)
     if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
         tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
         st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px;">Tipo de Serviço</p>', unsafe_allow_html=True)
-        selected_tipo = st.selectbox("Tipo de Serviço", ["Todos"] + tipos_disponiveis, key="tipo_select", label_visibility="collapsed")
+        selected_tipos = st.multiselect(
+            "Tipo de Serviço", tipos_disponiveis, key="tipo_multiselect",
+            placeholder="Todos", label_visibility="collapsed",
+        )
     else:
-        selected_tipo = "Todos"
+        selected_tipos = []
 
     if df_for_types is not None:
         st.markdown("---")
@@ -1214,9 +1217,9 @@ else:
     df_colab = pd.DataFrame()
     df_view = df
 
-# Aplicar filtro por tipo de servico
-if selected_tipo != "Todos":
-    df_view = df_view[df_view["Tipo de Solicitação"] == selected_tipo]
+# Aplicar filtro por tipo de servico (um ou mais tipos)
+if selected_tipos:
+    df_view = df_view[df_view["Tipo de Solicitação"].isin(selected_tipos)]
 
 total_os = len(df_view)
 os_por_dia = df_view.groupby(df_view["Data Tramite"].dt.date).size()
@@ -1464,8 +1467,8 @@ with tab_acomp:
 # (o mapa tem o proprio seletor no painel da esquerda)
 # ---------------------------------------------------------------------------
 df_mapa = df
-if selected_tipo != "Todos":
-    df_mapa = df_mapa[df_mapa["Tipo de Solicitação"] == selected_tipo]
+if selected_tipos:
+    df_mapa = df_mapa[df_mapa["Tipo de Solicitação"].isin(selected_tipos)]
 if selected_dia is not None:
     df_mapa = df_mapa[df_mapa["Data Tramite"].dt.date == selected_dia]
 
@@ -1576,8 +1579,9 @@ if st.session_state.is_admin:
         filtros_ativos = []
         if not is_todos:
             filtros_ativos.append(selected_colab.split("(")[0].strip())
-        if selected_tipo != "Todos":
-            filtros_ativos.append(selected_tipo)
+        if selected_tipos:
+            filtros_ativos.append(selected_tipos[0] if len(selected_tipos) == 1
+                                  else f"{len(selected_tipos)} tipos de servico")
         if selected_dia is not None:
             filtros_ativos.append(selected_dia.strftime("%d/%m/%Y"))
         if filtros_ativos:
