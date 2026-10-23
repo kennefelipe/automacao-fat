@@ -1120,8 +1120,14 @@ with st.sidebar:
 
     # Seletor de colaborador (so aparece depois do upload)
     if df_for_types is not None and COLABORADORES_ZONAS:
-        st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Colaborador</p>', unsafe_allow_html=True)
         colab_names = ["Todos"] + sorted(COLABORADORES_ZONAS.keys())
+        # Clique no grafico "OS por Colaborador" (painel ADM) escolhe o nome aqui.
+        # Precisa ser aplicado ANTES de instanciar o selectbox: o Streamlit nao
+        # deixa alterar a chave de um widget ja criado no mesmo run.
+        pendente = st.session_state.pop("_colab_click_pending", None)
+        if pendente in colab_names:
+            st.session_state["colab_select"] = pendente
+        st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Colaborador</p>', unsafe_allow_html=True)
         selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select", label_visibility="collapsed")
     else:
         selected_colab = "Todos"
@@ -1566,12 +1572,31 @@ if st.session_state.is_admin:
     # Tab: Visao Geral (Top cidades + Ranking colaboradores)
     # -----------------------------------------------------------------------
     with tab_overview:
+        # Nota dos filtros ativos (dia + tipo + colaborador vindos do topo da tela)
+        filtros_ativos = []
+        if not is_todos:
+            filtros_ativos.append(selected_colab.split("(")[0].strip())
+        if selected_tipo != "Todos":
+            filtros_ativos.append(selected_tipo)
+        if selected_dia is not None:
+            filtros_ativos.append(selected_dia.strftime("%d/%m/%Y"))
+        if filtros_ativos:
+            st.markdown(
+                '<div style="display:inline-flex;align-items:center;gap:8px;'
+                'background:rgba(0,212,170,0.12);border:1px solid rgba(0,212,170,0.3);'
+                'border-radius:20px;padding:6px 16px;margin-bottom:12px;">'
+                '<span style="color:#00D4AA;font-size:13px;font-weight:600;">Filtrado por: '
+                + " · ".join(filtros_ativos) + "</span></div>",
+                unsafe_allow_html=True,
+            )
+
         col_chart1, col_chart2 = st.columns(2)
 
         with col_chart1:
             st.markdown('<div class="section-title">Top 15 Cidades com Mais OS Pendente</div>', unsafe_allow_html=True)
-            if "Zona Ligacao" in df.columns:
-                df_city = df.copy()
+            # df_dia ja carrega dia + tipo + colaborador selecionados no topo
+            if "Zona Ligacao" in df_dia.columns and not df_dia.empty:
+                df_city = df_dia.copy()
                 df_city["Cidade"] = df_city["Zona Ligacao"].map(ZONA_CIDADE)
                 city_counts = df_city["Cidade"].dropna().value_counts().head(15).sort_values(ascending=True)
                 if not city_counts.empty:
@@ -1601,43 +1626,61 @@ if st.session_state.is_admin:
                 else:
                     st.info("Sem dados de cidade disponíveis.")
             else:
-                st.info("Coluna 'Zona Ligacao' nao encontrada.")
+                st.info("Sem OS para os filtros selecionados.")
 
         with col_chart2:
             st.markdown('<div class="section-title">OS Pendente por Colaborador</div>', unsafe_allow_html=True)
-            if distribution:
-                colab_os = {name: len(d) for name, d in distribution.items() if not d.empty}
-                colab_os = dict(sorted(colab_os.items(), key=lambda x: x[1], reverse=False))
-                names = [n.split("(")[0].strip() for n in colab_os.keys()]
-                values = list(colab_os.values())
-                if values:
-                    fig_colab = go.Figure(go.Bar(
-                        x=values,
-                        y=names,
-                        orientation="h",
-                        text=values,
-                        textposition="outside",
-                        textfont=dict(color="white", size=12, family="Arial"),
-                        marker=dict(
-                            color=values,
-                            colorscale=[[0, "#00A87A"], [1, "#00C896"]],
-                        ),
-                    ))
-                    fig_colab.update_layout(
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="rgba(255,255,255,0.7)", size=12),
-                        margin=dict(l=0, r=40, t=10, b=10),
-                        height=450,
-                        xaxis=dict(visible=False),
-                        yaxis=dict(automargin=True),
-                        bargap=0.3,
-                    )
-                    st.plotly_chart(fig_colab, use_container_width=True, config={"displayModeBar": False})
+            # Ranking recalculado sobre o dia + tipo selecionados (todos os colaboradores)
+            dist_adm = distribute_os(df_mapa)
+            colab_os = {name: len(d) for name, d in dist_adm.items() if not d.empty}
+            colab_os = dict(sorted(colab_os.items(), key=lambda x: x[1], reverse=False))
+            full_names = list(colab_os.keys())
+            names = [n.split("(")[0].strip() for n in full_names]
+            values = list(colab_os.values())
+            short_to_full = {c.split("(")[0].strip(): c for c in COLABORADORES_ZONAS}
+            if values:
+                # destaca o colaborador escolhido; esmaece os demais
+                if is_todos:
+                    cores = ["#00C896"] * len(full_names)
                 else:
-                    st.info("Nenhuma OS distribuída.")
+                    cores = ["#00C896" if n == selected_colab else "rgba(0,200,150,0.25)"
+                             for n in full_names]
+                fig_colab = go.Figure(go.Bar(
+                    x=values,
+                    y=names,
+                    orientation="h",
+                    text=values,
+                    textposition="outside",
+                    textfont=dict(color="white", size=12, family="Arial"),
+                    marker=dict(color=cores),
+                ))
+                fig_colab.update_layout(
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="rgba(255,255,255,0.7)", size=12),
+                    margin=dict(l=0, r=40, t=10, b=10),
+                    height=450,
+                    xaxis=dict(visible=False),
+                    yaxis=dict(automargin=True),
+                    bargap=0.3,
+                )
+                ev_colab = st.plotly_chart(
+                    fig_colab, use_container_width=True,
+                    config={"displayModeBar": False},
+                    on_select="rerun", key="adm_colab_sel",
+                )
+                # Clicar numa barra seleciona o colaborador no topo (filtra tudo)
+                if ev_colab and ev_colab.selection and ev_colab.selection.points:
+                    clicado = ev_colab.selection.points[0].get("y")
+                    full = short_to_full.get(clicado)
+                    if full and full != selected_colab:
+                        st.session_state["_colab_click_pending"] = full
+                        st.rerun()
+                if is_todos:
+                    st.caption("Clique numa barra para filtrar todo o painel por aquele colaborador. "
+                               "Para voltar a todos, use o seletor na barra lateral.")
             else:
-                st.info("Nenhum colaborador configurado.")
+                st.info("Nenhuma OS para os filtros selecionados.")
 
     # -----------------------------------------------------------------------
     # Tab: Cobertura de Ausencias
