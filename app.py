@@ -518,6 +518,28 @@ def serie_codigos(df):
     return pd.Series(None, index=df.index, dtype="object"), None
 
 
+STATUS_AGUARDANDO_RETORNO = "Aguardando Retorno"
+
+
+def aplicar_status(df):
+    """Cria a coluna Status.
+
+    Regra especial, SO para Devolucao de Valores - Ligacao (codigo 112001):
+    se o Parecer Tecnico contiver o marcador #00, o status fica
+    'Aguardando Retorno'. Os demais tipos de solicitacao ficam sem status.
+    """
+    df = df.copy()
+    df["Status"] = ""
+    if "Parecer Técnico" not in df.columns:
+        return df
+    codigos, _ = serie_codigos(df)
+    eh_devolucao = codigos == "112001"
+    # #00 nao seguido de outro digito, para nao casar com #001, #002, etc.
+    tem_marcador = df["Parecer Técnico"].astype(str).str.contains(r"#00(?!\d)", regex=True, na=False)
+    df.loc[eh_devolucao & tem_marcador, "Status"] = STATUS_AGUARDANDO_RETORNO
+    return df
+
+
 def distribute_os(df):
     """Distribui as OS por colaborador baseado na zona.
 
@@ -616,9 +638,19 @@ def distribute_os(df):
 # A extracao do SCAE traz muita coluna que o pessoal nao usa.
 COLUNAS_EXPORT = [
     "Nº da Solicitação", "Nº Ligação", "Zona Ligacao",
-    "Tipo de Solicitação", "Data Tramite", "Data Pedido",
+    "Tipo de Solicitação", "Status", "Data Tramite", "Data Pedido",
 ]
 COLUNAS_DATA = ["Data Tramite", "Data Pedido"]
+
+
+def colunas_visiveis(df):
+    """COLUNAS_EXPORT presentes no df, omitindo Status quando esta todo vazio."""
+    cols = [c for c in COLUNAS_EXPORT if c in df.columns]
+    if "Status" in cols:
+        tem_status = df["Status"].astype(str).str.strip().ne("").any()
+        if not tem_status:
+            cols.remove("Status")
+    return cols
 
 
 def to_excel_download(df):
@@ -627,7 +659,7 @@ def to_excel_download(df):
     As datas saem como data de verdade (nao texto), para continuar dando
     para ordenar e filtrar no Excel, com a aparencia dd/mm/aaaa hh:mm.
     """
-    cols = [c for c in COLUNAS_EXPORT if c in df.columns]
+    cols = colunas_visiveis(df)
     saida = df[cols].copy() if cols else df.copy()
     if "Data Tramite" in saida.columns:
         saida = saida.sort_values("Data Tramite", ascending=True)
@@ -1155,6 +1187,7 @@ with st.sidebar:
             df = pd.read_excel(uploaded_file)
             df["Data Tramite"] = pd.to_datetime(df["Data Tramite"], errors="coerce")
             df["Data Pedido"] = pd.to_datetime(df["Data Pedido"], errors="coerce")
+            df = aplicar_status(df)
             primeira_carga = st.session_state.df_loaded is None
             st.session_state.df_loaded = df
             st.success(f"{len(df)} registros carregados")
@@ -1417,7 +1450,7 @@ with tab_acomp:
             titulo_tabela += " — " + selected_dia.strftime("%d/%m/%Y")
         st.markdown(f'<div class="section-title">{titulo_tabela}</div>', unsafe_allow_html=True)
 
-        available_cols = [c for c in COLUNAS_EXPORT if c in df_dia.columns]
+        available_cols = colunas_visiveis(df_dia)
         df_display = df_dia[available_cols].copy()
         df_display = df_display.sort_values("Data Tramite", ascending=True)
 
