@@ -286,6 +286,7 @@ CODIGOS_ESPECIALISTA = {"106008", "206006"}
 # 112001 Devolucao de Valores - Ligacao: so da Daiane, no estado todo.
 CODIGOS_EXCLUSIVOS = {
     "112001": "DAIANE BARROS DE OLIVEIRA (DAIANE.BARROS)",
+    "206004": "DAIANE BARROS DE OLIVEIRA (DAIANE.BARROS)",
 }
 
 ESPECIALISTA_ZONAS = {
@@ -492,6 +493,7 @@ _TEXTO_DOS_CODIGOS = {
     "206006": lambda t: ("disponibilidade" in t or "dispensa" in t)
                         and ("retifica" in t or "esgoto" in t),
     "112001": lambda t: "devolucao" in t and "valor" in t,
+    "206004": lambda t: "cancelamento" in t and "fatura" in t and "service now" in t,
 }
 
 
