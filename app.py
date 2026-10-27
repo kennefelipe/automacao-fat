@@ -1190,13 +1190,32 @@ with st.sidebar:
     else:
         selected_colab = "Todos"
 
+        # Personalização visual do filtro Tipo de Serviço
+    st.markdown("""
+        <style>
+        div[data-baseweb="select"] > div {
+            background-color: #FFFFFF !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
     # Filtro por tipo de servico (multiplos; lista vazia = todos)
     if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
-        tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
-        st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px;">Tipo de Serviço</p>', unsafe_allow_html=True)
+        tipos_disponiveis = sorted(
+            df_for_types["Tipo de Solicitação"].dropna().unique().tolist()
+        )
+        st.markdown(
+            '<p style="color: rgba(255,255,255,0.6); font-size: 12px; '
+            'text-transform: uppercase; letter-spacing: 1px; margin-top: 8px;">'
+            'Tipo de Serviço</p>',
+            unsafe_allow_html=True
+        )
         selected_tipos = st.multiselect(
-            "Tipo de Serviço", tipos_disponiveis, key="tipo_multiselect",
-            placeholder="Todos", label_visibility="collapsed",
+            "Tipo de Serviço",
+            tipos_disponiveis,
+            key="tipo_multiselect",
+            placeholder="Todos",
+            label_visibility="collapsed",
         )
     else:
         selected_tipos = []
