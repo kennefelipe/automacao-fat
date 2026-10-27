@@ -141,6 +141,28 @@ st.markdown("""
         color: #FFFFFF;
     }
 
+    /* Cards compactos (tela inicial) */
+    .metric-card.compact {
+        padding: 14px 18px;
+        min-height: 96px;
+        border-radius: 14px;
+    }
+    .metric-card.compact .metric-icon {
+        top: 12px;
+        left: 16px;
+        width: 30px;
+        height: 30px;
+        font-size: 14px;
+    }
+    .metric-card.compact .metric-value {
+        font-size: 28px;
+        margin-top: 26px;
+    }
+    .metric-card.compact .metric-label {
+        font-size: 11px;
+        margin-top: 4px;
+    }
+
     /* Tabela customizada */
     .data-table {
         background: rgba(19, 29, 53, 0.8);
@@ -1281,34 +1303,55 @@ if not df_cidade_src.empty and "Zona Ligacao" in df_cidade_src.columns and "Data
 
 tipos_count = df_view["Tipo de Solicitação"].nunique() if not df_view.empty else 0
 
+# TMAX: dias entre hoje e o tramite mais antigo em aberto (ontem = TMAX 1).
+# Mesma regra da medida do BI: ignora datas futuras. Usa df_view, entao
+# acompanha colaborador e tipo de solicitacao.
+hoje_br = datetime.now(BR_TZ).date()
+tmax = None
+tmax_data = None
+if "Data Tramite" in df_view.columns:
+    datas_tramite = df_view["Data Tramite"].dropna().dt.date
+    datas_tramite = datas_tramite[datas_tramite <= hoje_br]
+    if not datas_tramite.empty:
+        tmax_data = datas_tramite.min()
+        tmax = (hoje_br - tmax_data).days
+
 show_cards = is_todos or (not is_todos and selected_colab in distribution and not df_colab.empty)
 
 if show_cards:
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.markdown(render_metric_card(
             "\U0001f4cb", f"{total_os:,}".replace(",", "."),
-            "OS's em aberto", "card-cyan"
+            "OS's em aberto", "card-cyan compact"
         ), unsafe_allow_html=True)
     with col2:
         dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
         st.markdown(render_metric_card(
             "\U0001f4c5", dia_fmt,
-            f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red"
+            f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red compact"
         ), unsafe_allow_html=True)
     with col3:
         st.markdown(render_metric_card(
             "\U0001f4cb", str(tipos_count),
-            "Tipos de serviços", "card-orange"
+            "Tipos de serviços", "card-orange compact"
         ), unsafe_allow_html=True)
     with col4:
         if cidade_atrasada != "-":
-            cidade_html = f'<span style="font-size:20px">{cidade_atrasada}</span> <span style="font-size:28px;font-weight:900">({qtd_cidade_atrasada})</span>'
+            cidade_html = (f'<span style="font-size:15px">{cidade_atrasada}</span> '
+                           f'<span style="font-size:20px;font-weight:900">({qtd_cidade_atrasada})</span>')
         else:
             cidade_html = "-"
         st.markdown(render_metric_card(
             "\U0001f3d9️", cidade_html,
-            "Cidade mais atrasada", "card-white"
+            "Cidade mais atrasada", "card-white compact"
+        ), unsafe_allow_html=True)
+    with col5:
+        tmax_txt = f"TMAX {tmax}" if tmax is not None else "-"
+        tmax_label = (f"Trâmite mais antigo: {tmax_data.strftime('%d/%m')}"
+                      if tmax_data else "Sem OS em aberto")
+        st.markdown(render_metric_card(
+            "⏱️", tmax_txt, tmax_label, "card-dark compact"
         ), unsafe_allow_html=True)
 elif not is_todos and selected_colab in distribution and df_colab.empty:
     st.info("Nenhuma OS atribuida para este colaborador.")
