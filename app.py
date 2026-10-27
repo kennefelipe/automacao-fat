@@ -1326,17 +1326,6 @@ if show_cards:
             "OS's em aberto", "card-cyan compact"
         ), unsafe_allow_html=True)
     with col2:
-        dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
-        st.markdown(render_metric_card(
-            "\U0001f4c5", dia_fmt,
-            f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-red compact"
-        ), unsafe_allow_html=True)
-    with col3:
-        st.markdown(render_metric_card(
-            "\U0001f4cb", str(tipos_count),
-            "Tipos de serviços", "card-orange compact"
-        ), unsafe_allow_html=True)
-    with col4:
         if cidade_atrasada != "-":
             cidade_html = (f'<span style="font-size:15px">{cidade_atrasada}</span> '
                            f'<span style="font-size:20px;font-weight:900">({qtd_cidade_atrasada})</span>')
@@ -1346,12 +1335,23 @@ if show_cards:
             "\U0001f3d9️", cidade_html,
             "Cidade mais atrasada", "card-white compact"
         ), unsafe_allow_html=True)
+    with col3:
+        st.markdown(render_metric_card(
+            "\U0001f4cb", str(tipos_count),
+            "Tipos de serviços", "card-dark compact"
+        ), unsafe_allow_html=True)
+    with col4:
+        dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
+        st.markdown(render_metric_card(
+            "\U0001f4c5", dia_fmt,
+            f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-orange compact"
+        ), unsafe_allow_html=True)
     with col5:
         tmax_txt = f"TMAX {tmax}" if tmax is not None else "-"
         tmax_label = (f"Trâmite mais antigo: {tmax_data.strftime('%d/%m')}"
                       if tmax_data else "Sem OS em aberto")
         st.markdown(render_metric_card(
-            "⏱️", tmax_txt, tmax_label, "card-dark compact"
+            "⏱️", tmax_txt, tmax_label, "card-red compact"
         ), unsafe_allow_html=True)
 elif not is_todos and selected_colab in distribution and df_colab.empty:
     st.info("Nenhuma OS atribuida para este colaborador.")
