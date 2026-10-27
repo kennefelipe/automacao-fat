@@ -1362,7 +1362,7 @@ elif not is_todos:
 
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
-tab_acomp, tab_mapa = st.tabs(["Acompanhamento", "Mapa de Cobertura"])
+tab_acomp, tab_mapa = st.tabs([" Acompanhamento ", " Mapa de Cobertura "])
 
 with tab_acomp:
     # ---------------------------------------------------------------------------
