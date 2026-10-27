@@ -285,6 +285,7 @@ st.markdown("""
 # Exemplo: "Nome": [1, 2, 3, 10, 15]
 # ---------------------------------------------------------------------------
 COLABORADORES_ZONAS = {
+    "ALEXANDRE PEDROSO LOPES": [],
     "AMANDA BARCELLOS": [],
     "CAROLINE DE OLIVEIRA SANTOS": [10, 17, 35, 49, 58, 67, 75, 76, 80, 84, 90, 91, 95, 98, 103, 109, 113, 120, 121, 124, 125, 133, 135, 141, 144, 147, 150, 151, 175, 197, 207, 212, 214, 215, 219, 235, 237, 295, 297, 405, 412, 413, 418, 421, 429, 447, 451, 455],
     "CLEVER FANFA SARMENTO JUNIOR": [82, 210, 239],
@@ -308,6 +309,7 @@ CODIGOS_ESPECIALISTA = {"106008", "206006"}
 CODIGOS_EXCLUSIVOS = {
     "112001": "DAIANE BARROS DE OLIVEIRA",
     "206004": "DAIANE BARROS DE OLIVEIRA",
+    "306006": "ALEXANDRE PEDROSO LOPES",
 }
 
 ESPECIALISTA_ZONAS = {
@@ -515,6 +517,7 @@ _TEXTO_DOS_CODIGOS = {
                         and ("retifica" in t or "esgoto" in t),
     "112001": lambda t: "devolucao" in t and "valor" in t,
     "206004": lambda t: "cancelamento" in t and "fatura" in t and "service now" in t,
+    "306006": lambda t: "retificacao" in t and "fatura" in t and "grandes" in t,
 }
 
 
