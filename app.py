@@ -1452,35 +1452,122 @@ with tab_acomp:
     # Quantidade por tipo de servico - Grafico de barras horizontal amarelo
     # ---------------------------------------------------------------------------
     titulo_tipo = "Distribuição por Tipo de Serviço"
-    if selected_dia is not None:
-        titulo_tipo += " — " + selected_dia.strftime("%d/%m/%Y")
-    st.markdown(f'<div class="section-title">{titulo_tipo}</div>', unsafe_allow_html=True)
+if selected_dia is not None:
+    titulo_tipo += " — " + selected_dia.strftime("%d/%m/%Y")
 
-    tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
-    max_count = tipo_counts.max() if not tipo_counts.empty else 1
+st.markdown(f'<div class="section-title">{titulo_tipo}</div>', unsafe_allow_html=True)
 
-    if tipo_counts.empty:
-        st.caption("Nenhuma OS para esta data.")
-    else:
-        for tipo, count in tipo_counts.items():
-            pct = (count / total_filtrado) * 100 if total_filtrado > 0 else 0
-            bar_width = (count / max_count) * 100
-            st.markdown(
-                '<div style="margin-bottom: 10px;">'
-                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">'
-                f'<span style="color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;">{tipo}</span>'
-                f'<span style="color: #FFB347; font-size: 14px; font-weight: 700;">{count} '
-                f'<span style="font-size:11px; color: rgba(255,255,255,0.4);">({pct:.1f}%)</span></span>'
-                '</div>'
-                '<div style="background: rgba(255,255,255,0.06); border-radius: 6px; height: 28px; overflow: hidden;">'
-                f'<div style="background: linear-gradient(90deg, #FF9A2E, #FFB347); width: {bar_width}%;'
-                ' height: 100%; border-radius: 6px; transition: width 0.5s ease;"></div>'
-                '</div>'
-                '</div>',
-                unsafe_allow_html=True,
-            )
+tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
+max_count = tipo_counts.max() if not tipo_counts.empty else 1
 
-    st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
+# Estado do tipo de servico selecionado
+tipo_key = f"tipo_selecionado_{selected_colab}"
+selected_tipo = st.session_state.get(tipo_key)
+
+# Limpar selecao se o tipo nao existir mais nos dados filtrados
+if selected_tipo not in tipo_counts.index:
+    selected_tipo = None
+    st.session_state[tipo_key] = None
+
+if tipo_counts.empty:
+    st.caption("Nenhuma OS para esta data.")
+else:
+    tipos_plot = tipo_counts.index.tolist()
+
+    fig_tipos = go.Figure(
+        go.Bar(
+            x=tipo_counts.values,
+            y=tipos_plot,
+            orientation="h",
+            marker=dict(
+                color=[
+                    "#00D4AA" if tipo == selected_tipo else "#FFB347"
+                    for tipo in tipos_plot
+                ],
+                cornerradius=4,
+            ),
+            text=tipo_counts.values,
+            textposition="outside",
+            textfont=dict(color="#FFFFFF", size=12, family="sans-serif"),
+            customdata=tipos_plot,
+            hovertemplate="<b>%{y}</b><br>Quantidade: %{x}<extra></extra>",
+        )
+    )
+
+    fig_tipos.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=40, t=10, b=0),
+        height=max(300, len(tipos_plot) * 45),
+        showlegend=False,
+        xaxis=dict(
+            visible=False,
+            showgrid=False,
+        ),
+        yaxis=dict(
+            color="rgba(255,255,255,0.85)",
+            tickfont=dict(size=12),
+            showgrid=False,
+            autorange="reversed",
+        ),
+        bargap=0.3,
+    )
+
+    event_tipo = st.plotly_chart(
+        fig_tipos,
+        use_container_width=True,
+        config={"displayModeBar": False},
+        on_select="rerun",
+        key=f"chart_tipos_{selected_colab}",
+    )
+
+    # Identificar a barra clicada
+    if (
+        event_tipo
+        and hasattr(event_tipo, "selection")
+        and event_tipo.selection
+        and event_tipo.selection.points
+    ):
+        ponto = event_tipo.selection.points[0]
+        tipo_clicado = ponto.get("y")
+
+        if tipo_clicado:
+            if selected_tipo == tipo_clicado:
+                selected_tipo = None
+            else:
+                selected_tipo = tipo_clicado
+
+            st.session_state[tipo_key] = selected_tipo
+
+    # Aplicar filtro pelo tipo de servico selecionado
+    if selected_tipo is not None:
+        df_dia = df_dia[
+            df_dia["Tipo de Solicitação"] == selected_tipo
+        ]
+
+        st.markdown(
+            '<div style="display:inline-flex;align-items:center;gap:8px;'
+            'background:rgba(255,179,71,0.12);'
+            'border:1px solid rgba(255,179,71,0.3);'
+            'border-radius:20px;padding:6px 16px;margin:4px 0 12px 0;">'
+            '<span style="color:#FFB347;font-size:13px;font-weight:600;">'
+            'Filtrado por: ' + str(selected_tipo) + '</span>'
+            '<span style="color:rgba(255,255,255,0.4);font-size:11px;">'
+            'Clique novamente na barra para limpar</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    # Botao para limpar o filtro
+    if selected_tipo is not None:
+        if st.button(
+            "Limpar filtro de tipo de serviço",
+            key=f"limpar_tipo_{selected_colab}",
+        ):
+            st.session_state[tipo_key] = None
+            st.rerun()
+
+st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
 
     # ---------------------------------------------------------------------------
     # Tabela e Download (colaborador selecionado OU dia selecionado)
