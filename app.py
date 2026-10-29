@@ -729,6 +729,10 @@ if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 if "df_loaded" not in st.session_state:
     st.session_state.df_loaded = None
+if "df_encerradas" not in st.session_state:
+    st.session_state.df_encerradas = None
+if "col_encerramento" not in st.session_state:
+    st.session_state.col_encerramento = None
 
 # ---------------------------------------------------------------------------
 # Logo (carregada uma vez e cacheada)
@@ -755,6 +759,33 @@ def norm_cidade(nome: str) -> str:
     s = unicodedata.normalize("NFKD", str(nome))
     s = "".join(c for c in s if not unicodedata.combining(c))
     return " ".join(s.lower().replace("-", " ").split())
+
+
+COL_USUARIO_ENC = "usuario encerramento"
+_VAZIOS = {"", "nan", "none", "null", "nat", "-"}
+
+
+def separar_abertas_encerradas(df_raw):
+    """Separa o relatorio em (abertas, encerradas, coluna_usuario).
+
+    Sem preenchimento em 'Usuario Encerramento' = em aberto.
+    Com nome = encerrada (o nome e de quem encerrou).
+    Se o relatorio nao tiver a coluna, tudo e tratado como em aberto.
+    """
+    col = next((c for c in df_raw.columns
+                if norm_cidade(c) == COL_USUARIO_ENC), None)
+    if col is None:
+        return df_raw, pd.DataFrame(columns=df_raw.columns), None
+
+    usuario = df_raw[col].astype(str).str.strip()
+    vazio = df_raw[col].isna() | usuario.str.lower().isin(_VAZIOS)
+
+    abertas = df_raw[vazio].copy()
+    encerradas = df_raw[~vazio].copy()
+    encerradas[col] = usuario[~vazio]
+    if "Nº da Solicitação" in encerradas.columns:
+        encerradas = encerradas.drop_duplicates(subset=["Nº da Solicitação"])
+    return abertas, encerradas, col
 
 
 @st.cache_data
@@ -1210,13 +1241,21 @@ with st.sidebar:
 
     if uploaded_file is not None:
         try:
-            df = pd.read_excel(uploaded_file)
+            df_raw = pd.read_excel(uploaded_file)
+            # So as abertas seguem para o sistema; as encerradas ficam
+            # separadas e so o painel admin usa.
+            df, df_enc, col_enc = separar_abertas_encerradas(df_raw)
             df["Data Tramite"] = pd.to_datetime(df["Data Tramite"], errors="coerce")
             df["Data Pedido"] = pd.to_datetime(df["Data Pedido"], errors="coerce")
             df = aplicar_status(df)
             primeira_carga = st.session_state.df_loaded is None
             st.session_state.df_loaded = df
-            st.success(f"{len(df)} registros carregados")
+            st.session_state.df_encerradas = df_enc
+            st.session_state.col_encerramento = col_enc
+            msg = f"{len(df)} registros em aberto"
+            if len(df_enc):
+                msg += f" · {len(df_enc)} encerradas"
+            st.success(msg)
             if primeira_carga:
                 st.rerun()
         except Exception as e:
@@ -1649,7 +1688,9 @@ if st.session_state.is_admin:
     </div>
     """, unsafe_allow_html=True)
 
-    tab_overview, tab_absence, tab_audit = st.tabs(["Visao Geral", "Cobertura de Ausencias", "Historico / Auditoria"])
+    tab_overview, tab_encerradas, tab_absence, tab_audit = st.tabs(
+        ["Visao Geral", "Encerradas", "Cobertura de Ausencias", "Historico / Auditoria"]
+    )
 
     # -----------------------------------------------------------------------
     # Tab: Visao Geral (Top cidades + Ranking colaboradores)
@@ -1765,6 +1806,50 @@ if st.session_state.is_admin:
                                "Para voltar a todos, use o seletor na barra lateral.")
             else:
                 st.info("Nenhuma OS para os filtros selecionados.")
+
+    # -----------------------------------------------------------------------
+    # Tab: Encerradas (so existe quando o relatorio traz abertas + encerradas)
+    # -----------------------------------------------------------------------
+    with tab_encerradas:
+        st.markdown('<div class="section-title">Solicitações Encerradas por Usuário</div>', unsafe_allow_html=True)
+
+        df_enc = st.session_state.get("df_encerradas")
+        col_enc = st.session_state.get("col_encerramento")
+
+        if df_enc is None or df_enc.empty or col_enc is None:
+            st.info("Sem dados de encerradas. Carregue o relatório com OS em aberto "
+                    "e encerradas para ver este gráfico.")
+        else:
+            df_e = df_enc
+            if selected_tipos and "Tipo de Solicitação" in df_e.columns:
+                df_e = df_e[df_e["Tipo de Solicitação"].isin(selected_tipos)]
+
+            if df_e.empty:
+                st.info("Nenhuma OS encerrada para os filtros selecionados.")
+            else:
+                enc_counts = df_e[col_enc].value_counts().sort_values(ascending=True)
+                st.caption(f"Total de encerradas: {int(enc_counts.sum()):,}".replace(",", "."))
+                fig_enc = go.Figure(go.Bar(
+                    x=enc_counts.values,
+                    y=enc_counts.index,
+                    orientation="h",
+                    text=enc_counts.values,
+                    textposition="outside",
+                    textfont=dict(color="white", size=12, family="Arial"),
+                    marker=dict(color="#00D4AA"),
+                ))
+                fig_enc.update_layout(
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="rgba(255,255,255,0.7)", size=12),
+                    margin=dict(l=0, r=40, t=10, b=10),
+                    height=max(300, 28 * len(enc_counts) + 40),
+                    xaxis=dict(visible=False),
+                    yaxis=dict(automargin=True),
+                    bargap=0.3,
+                )
+                st.plotly_chart(fig_enc, use_container_width=True,
+                                config={"displayModeBar": False}, key="adm_encerradas")
 
     # -----------------------------------------------------------------------
     # Tab: Cobertura de Ausencias
