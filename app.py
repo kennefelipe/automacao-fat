@@ -9,9 +9,7 @@ from PIL import Image
 import json
 import os
 import re
-import base64
 import unicodedata
-import requests
 
 icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
 # ---------------------------------------------------------------------------
@@ -314,6 +312,15 @@ CODIGOS_EXCLUSIVOS = {
     "306006": "ALEXANDRE PEDROSO LOPES",
 }
 
+# Quem cuida de solicitacoes especificas e, por isso, NAO entra no rateio
+# quando a ausencia de alguem e redistribuida para todos.
+FORA_DA_REDISTRIBUICAO = {
+    "PEDRO ARTHUR ALVES DE FREITAS",
+    "AMANDA BARCELLOS",
+    "ALEXANDRE PEDROSO LOPES",
+    "DAIANE BARROS DE OLIVEIRA",
+}
+
 ESPECIALISTA_ZONAS = {
     "AMANDA BARCELLOS": [1, 2, 4, 5, 6, 8, 10, 11, 13, 15, 17, 18, 20, 21, 22, 23, 24, 25, 26, 28, 29, 30, 32, 33, 35, 36, 37, 39, 40, 41, 42, 43, 48, 49, 50, 51, 52, 53, 55, 58, 59, 60, 61, 62, 63, 65, 66, 67, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 83, 84, 86, 87, 88, 89, 90, 91, 93, 94, 95, 98, 99, 101, 102, 103, 104, 105, 107, 108, 109, 110, 111, 113, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 127, 128, 130, 133, 135, 136, 137, 138, 139, 140, 141, 144, 146, 147, 148, 149, 150, 151, 154, 158, 159, 160, 161, 162, 163, 164, 166, 167, 168, 170, 171, 173, 174, 175, 176, 177, 178, 179, 180, 182, 185, 186, 188, 189, 190, 191, 192, 193, 197, 199, 200, 201, 202, 204, 206, 207, 208, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 223, 224, 229, 230, 231, 232, 233, 235, 236, 237, 238, 240, 241, 242, 248, 250, 251, 256, 261, 262, 269, 270, 276, 279, 280, 284, 286, 289, 293, 295, 296, 297, 299, 405, 406, 409, 410, 411, 412, 413, 418, 420, 421, 422, 425, 426, 429, 432, 433, 435, 438, 441, 442, 443, 445, 447, 451, 455, 458, 460, 461, 465, 467, 497, 499],
     "PEDRO ARTHUR ALVES DE FREITAS": [7, 9, 12, 14, 19, 27, 31, 34, 38, 44, 45, 46, 47, 54, 56, 57, 64, 68, 69, 81, 82, 85, 92, 96, 97, 100, 106, 114, 129, 131, 132, 143, 145, 152, 153, 155, 156, 157, 165, 169, 181, 184, 187, 195, 196, 198, 205, 209, 210, 221, 222, 225, 226, 227, 228, 239, 245, 249, 258, 263, 272, 275, 277, 281, 283, 285, 292, 294, 298, 311, 403, 404, 414, 415, 416, 423, 430, 439, 444, 446, 463, 466],
@@ -470,136 +477,16 @@ def add_audit_entry(colaborador, action="download"):
     save_audit_log(log)
 
 
-# ---------------------------------------------------------------------------
-# Persistencia duravel das ausencias.
-# O Streamlit Community Cloud apaga o disco a cada hibernacao/redeploy, entao
-# o estado de ausencias vai para o proprio repositorio no GitHub e e lido de
-# la. Fica num branch separado (nao o publicado) para NAO disparar um novo
-# deploy a cada registro de ausencia. Sem o token configurado, o app cai no
-# arquivo local (comportamento antigo).
-#
-# Configure em Settings -> Secrets do app no Streamlit Cloud:
-#   [github]
-#   token = "github_pat_..."     # token com permissao de conteudo (read/write)
-#   owner = "kennefelipe"        # opcional
-#   repo  = "automacao-fat"      # opcional
-#   state_branch = "app-state"   # opcional
-# ---------------------------------------------------------------------------
-GH_API = "https://api.github.com"
-
-
-def _gh_conf():
-    """Config do GitHub a partir dos secrets, ou None se nao configurado."""
-    try:
-        gh = st.secrets["github"]
-        token = gh["token"]
-    except Exception:
-        return None
-    if not token:
-        return None
-    return {
-        "token": token,
-        "owner": gh.get("owner", "kennefelipe"),
-        "repo": gh.get("repo", "automacao-fat"),
-        "branch": gh.get("state_branch", "app-state"),
-        "path": gh.get("state_path", "absence_config.json"),
-    }
-
-
-def _gh_headers(token):
-    return {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-
-
-def _gh_ensure_branch(cfg):
-    """Garante o branch de estado; cria a partir do branch default se faltar."""
-    base = f"{GH_API}/repos/{cfg['owner']}/{cfg['repo']}"
-    h = _gh_headers(cfg["token"])
-    r = requests.get(f"{base}/git/ref/heads/{cfg['branch']}", headers=h, timeout=15)
-    if r.status_code == 200:
-        return
-    info = requests.get(base, headers=h, timeout=15)
-    info.raise_for_status()
-    default_branch = info.json()["default_branch"]
-    head = requests.get(f"{base}/git/ref/heads/{default_branch}", headers=h, timeout=15)
-    head.raise_for_status()
-    requests.post(
-        f"{base}/git/refs", headers=h, timeout=15,
-        json={"ref": f"refs/heads/{cfg['branch']}", "sha": head.json()["object"]["sha"]},
-    )
-
-
-@st.cache_data(ttl=45, show_spinner=False)
-def _gh_read_absence():
-    """Le o estado do GitHub. Retorna dict; levanta excecao se indisponivel."""
-    cfg = _gh_conf()
-    if cfg is None:
-        raise RuntimeError("github nao configurado")
-    url = f"{GH_API}/repos/{cfg['owner']}/{cfg['repo']}/contents/{cfg['path']}"
-    r = requests.get(url, headers=_gh_headers(cfg["token"]),
-                     params={"ref": cfg["branch"]}, timeout=15)
-    if r.status_code == 404:
-        return {}  # arquivo ainda nao existe => nenhuma ausencia
-    r.raise_for_status()
-    conteudo = base64.b64decode(r.json()["content"]).decode("utf-8")
-    return json.loads(conteudo) if conteudo.strip() else {}
-
-
-def _gh_write_absence(config):
-    """Grava o estado no GitHub (branch de estado). Retorna True se gravou."""
-    cfg = _gh_conf()
-    if cfg is None:
-        return False
-    _gh_ensure_branch(cfg)
-    url = f"{GH_API}/repos/{cfg['owner']}/{cfg['repo']}/contents/{cfg['path']}"
-    h = _gh_headers(cfg["token"])
-    atual = requests.get(url, headers=h, params={"ref": cfg["branch"]}, timeout=15)
-    sha = atual.json().get("sha") if atual.status_code == 200 else None
-    corpo = base64.b64encode(
-        json.dumps(config, ensure_ascii=False, indent=2).encode("utf-8")
-    ).decode("ascii")
-    payload = {"message": "atualiza estado de ausencias",
-               "content": corpo, "branch": cfg["branch"]}
-    if sha:
-        payload["sha"] = sha
-    r = requests.put(url, headers=h, json=payload, timeout=20)
-    return r.status_code in (200, 201)
-
-
 def load_absence_config():
-    """Fonte da verdade: GitHub (sobrevive a reinicios). Cai no arquivo local
-    e depois em {} quando o GitHub nao esta configurado/acessivel."""
-    try:
-        return _gh_read_absence()
-    except Exception:
-        pass
     if os.path.exists(ABSENCE_FILE):
-        try:
-            with open(ABSENCE_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
+        with open(ABSENCE_FILE, "r") as f:
+            return json.load(f)
     return {}
 
 
 def save_absence_config(config):
-    """Grava local (efeito imediato + fallback) e no GitHub (duravel)."""
-    try:
-        with open(ABSENCE_FILE, "w") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-    try:
-        _gh_write_absence(config)
-    except Exception:
-        pass
-    try:
-        _gh_read_absence.clear()
-    except Exception:
-        pass
+    with open(ABSENCE_FILE, "w") as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
 
 
 def _codigo_inicial(valor):
@@ -769,7 +656,8 @@ def distribute_os(df):
             target = info["redirect_to"]
             distribution[target] = pd.concat([distribution[target], os_ausente])
         elif info.get("distribute_all"):
-            active_list = list(active_collabs.keys())
+            active_list = [c for c in active_collabs
+                           if c not in FORA_DA_REDISTRIBUICAO]
             if active_list:
                 chunks = [os_ausente.iloc[i::len(active_list)] for i in range(len(active_list))]
                 for idx, ac in enumerate(active_list):
