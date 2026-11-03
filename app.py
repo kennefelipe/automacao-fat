@@ -1836,6 +1836,33 @@ if st.session_state.is_admin:
             if selected_tipos and "Tipo de Solicitação" in df_e.columns:
                 df_e = df_e[df_e["Tipo de Solicitação"].isin(selected_tipos)]
 
+            # O encerramento final vem da coluna "Ocorrencia Encerramento".
+            # So contam 0-EXECUTADO (executadas), SUSPENSO (suspensas) e
+            # INDEFERIDO (indeferidas); as demais ocorrencias sao tentativas
+            # e nao entram na contagem.
+            col_ocor = next(
+                (c for c in df_e.columns
+                 if "ocorrencia" in norm_cidade(c) and "encerr" in norm_cidade(c)),
+                None,
+            )
+
+            def _situacao_final(valor):
+                t = norm_cidade(valor)
+                if "executad" in t:
+                    return "Executadas"
+                if "suspens" in t:
+                    return "Suspensas"
+                if "indefer" in t:
+                    return "Indeferidas"
+                return None
+
+            if col_ocor is not None:
+                df_e = df_e.assign(_situacao=df_e[col_ocor].map(_situacao_final))
+                df_e = df_e[df_e["_situacao"].notna()]
+            else:
+                st.caption("Relatório sem coluna 'Ocorrência Encerramento'; "
+                           "contabilizando todas as encerradas.")
+
             # Filtro por data de encerramento (pre-selecionado: hoje)
             col_data_enc = next(
                 (c for c in df_e.columns
@@ -1882,15 +1909,13 @@ if st.session_state.is_admin:
                 st.plotly_chart(fig_enc, use_container_width=True,
                                 config={"displayModeBar": False}, key="adm_encerradas")
 
-                # Pizza: indeferidas / executadas / suspensas
-                col_sit = next(
-                    (c for c in df_e.columns if "situa" in norm_cidade(c)), None)
-                if col_sit is not None:
-                    sit = df_e[col_sit].astype(str).str.lower()
+                # Pizza: executadas / indeferidas / suspensas (Ocorrencia Encerramento)
+                if col_ocor is not None:
+                    cont = df_e["_situacao"].value_counts()
                     buckets = {
-                        "Executadas": int(sit.str.contains("execut", na=False).sum()),
-                        "Indeferidas": int(sit.str.contains("indefer", na=False).sum()),
-                        "Suspensas": int(sit.str.contains("suspens", na=False).sum()),
+                        "Executadas": int(cont.get("Executadas", 0)),
+                        "Indeferidas": int(cont.get("Indeferidas", 0)),
+                        "Suspensas": int(cont.get("Suspensas", 0)),
                     }
                     if sum(buckets.values()) > 0:
                         st.markdown(
@@ -1928,11 +1953,8 @@ if st.session_state.is_admin:
                                         config={"displayModeBar": False},
                                         key="adm_enc_pizza")
                     else:
-                        st.caption("Sem registros de indeferidas, executadas ou "
+                        st.caption("Sem registros de executadas, indeferidas ou "
                                    "suspensas para esta data.")
-                else:
-                    st.caption("Relatório sem coluna de situação; não é possível "
-                               "montar o gráfico de pizza.")
 
     # -----------------------------------------------------------------------
     # Tab: Cobertura de Ausencias
