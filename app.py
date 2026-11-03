@@ -9,7 +9,9 @@ from PIL import Image
 import json
 import os
 import re
+import base64
 import unicodedata
+import requests
 
 icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
 # ---------------------------------------------------------------------------
@@ -468,16 +470,136 @@ def add_audit_entry(colaborador, action="download"):
     save_audit_log(log)
 
 
+# ---------------------------------------------------------------------------
+# Persistencia duravel das ausencias.
+# O Streamlit Community Cloud apaga o disco a cada hibernacao/redeploy, entao
+# o estado de ausencias vai para o proprio repositorio no GitHub e e lido de
+# la. Fica num branch separado (nao o publicado) para NAO disparar um novo
+# deploy a cada registro de ausencia. Sem o token configurado, o app cai no
+# arquivo local (comportamento antigo).
+#
+# Configure em Settings -> Secrets do app no Streamlit Cloud:
+#   [github]
+#   token = "github_pat_..."     # token com permissao de conteudo (read/write)
+#   owner = "kennefelipe"        # opcional
+#   repo  = "automacao-fat"      # opcional
+#   state_branch = "app-state"   # opcional
+# ---------------------------------------------------------------------------
+GH_API = "https://api.github.com"
+
+
+def _gh_conf():
+    """Config do GitHub a partir dos secrets, ou None se nao configurado."""
+    try:
+        gh = st.secrets["github"]
+        token = gh["token"]
+    except Exception:
+        return None
+    if not token:
+        return None
+    return {
+        "token": token,
+        "owner": gh.get("owner", "kennefelipe"),
+        "repo": gh.get("repo", "automacao-fat"),
+        "branch": gh.get("state_branch", "app-state"),
+        "path": gh.get("state_path", "absence_config.json"),
+    }
+
+
+def _gh_headers(token):
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def _gh_ensure_branch(cfg):
+    """Garante o branch de estado; cria a partir do branch default se faltar."""
+    base = f"{GH_API}/repos/{cfg['owner']}/{cfg['repo']}"
+    h = _gh_headers(cfg["token"])
+    r = requests.get(f"{base}/git/ref/heads/{cfg['branch']}", headers=h, timeout=15)
+    if r.status_code == 200:
+        return
+    info = requests.get(base, headers=h, timeout=15)
+    info.raise_for_status()
+    default_branch = info.json()["default_branch"]
+    head = requests.get(f"{base}/git/ref/heads/{default_branch}", headers=h, timeout=15)
+    head.raise_for_status()
+    requests.post(
+        f"{base}/git/refs", headers=h, timeout=15,
+        json={"ref": f"refs/heads/{cfg['branch']}", "sha": head.json()["object"]["sha"]},
+    )
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def _gh_read_absence():
+    """Le o estado do GitHub. Retorna dict; levanta excecao se indisponivel."""
+    cfg = _gh_conf()
+    if cfg is None:
+        raise RuntimeError("github nao configurado")
+    url = f"{GH_API}/repos/{cfg['owner']}/{cfg['repo']}/contents/{cfg['path']}"
+    r = requests.get(url, headers=_gh_headers(cfg["token"]),
+                     params={"ref": cfg["branch"]}, timeout=15)
+    if r.status_code == 404:
+        return {}  # arquivo ainda nao existe => nenhuma ausencia
+    r.raise_for_status()
+    conteudo = base64.b64decode(r.json()["content"]).decode("utf-8")
+    return json.loads(conteudo) if conteudo.strip() else {}
+
+
+def _gh_write_absence(config):
+    """Grava o estado no GitHub (branch de estado). Retorna True se gravou."""
+    cfg = _gh_conf()
+    if cfg is None:
+        return False
+    _gh_ensure_branch(cfg)
+    url = f"{GH_API}/repos/{cfg['owner']}/{cfg['repo']}/contents/{cfg['path']}"
+    h = _gh_headers(cfg["token"])
+    atual = requests.get(url, headers=h, params={"ref": cfg["branch"]}, timeout=15)
+    sha = atual.json().get("sha") if atual.status_code == 200 else None
+    corpo = base64.b64encode(
+        json.dumps(config, ensure_ascii=False, indent=2).encode("utf-8")
+    ).decode("ascii")
+    payload = {"message": "atualiza estado de ausencias",
+               "content": corpo, "branch": cfg["branch"]}
+    if sha:
+        payload["sha"] = sha
+    r = requests.put(url, headers=h, json=payload, timeout=20)
+    return r.status_code in (200, 201)
+
+
 def load_absence_config():
+    """Fonte da verdade: GitHub (sobrevive a reinicios). Cai no arquivo local
+    e depois em {} quando o GitHub nao esta configurado/acessivel."""
+    try:
+        return _gh_read_absence()
+    except Exception:
+        pass
     if os.path.exists(ABSENCE_FILE):
-        with open(ABSENCE_FILE, "r") as f:
-            return json.load(f)
+        try:
+            with open(ABSENCE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
     return {}
 
 
 def save_absence_config(config):
-    with open(ABSENCE_FILE, "w") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    """Grava local (efeito imediato + fallback) e no GitHub (duravel)."""
+    try:
+        with open(ABSENCE_FILE, "w") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    try:
+        _gh_write_absence(config)
+    except Exception:
+        pass
+    try:
+        _gh_read_absence.clear()
+    except Exception:
+        pass
 
 
 def _codigo_inicial(valor):

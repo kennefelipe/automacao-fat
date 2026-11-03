@@ -6,3 +6,5 @@ uploads/
 !requirements.txt
 .env
 venv/
+absence_config.json
+audit_log.json
