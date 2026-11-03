@@ -300,6 +300,25 @@ COLABORADORES_ZONAS = {
     "PRISCILA DA SILVA LIMA": [1, 11, 13, 24, 30, 41, 48, 51, 73, 83, 87, 107, 108, 119, 127, 137, 138, 148, 154, 164, 174, 180, 213, 217, 220, 223, 236, 241, 250, 261, 269, 422, 425, 467],
 }
 
+# Login de encerramento (coluna "Usuario Encerramento") de cada colaborador da
+# distribuicao. Na aba de Encerradas, usuarios fora desta lista (de outras
+# equipes / divergentes) sao desconsiderados na contagem.
+EQUIPE_LOGINS = {
+    "ALEXANDRE PEDROSO LOPES": "ALEXANDRE.PLOPES",
+    "AMANDA BARCELLOS": "AMANDA.BARCELLOS",
+    "CAROLINE DE OLIVEIRA SANTOS": "CAROLINE.OSANTOS",
+    "CLEVER FANFA SARMENTO JUNIOR": "CLEVER.JUNIOR",
+    "DAIANE BARROS DE OLIVEIRA": "DAIANE.BARROS",
+    "ELIANA CATARINA BALOK CHAGAS": "ELIANA.CHAGAS",
+    "GABRIEL GODOI TEIXEIRA": "GABRIEL.GODOI",
+    "HELLEN SCHIMIDT DIAS": "HELLEN.DIAS",
+    "IGOR MARTINI RODRIGUES": "IGOR.MARTINI",
+    "JULIA DA SILVA FLORES": "JULIA.SFLORES",
+    "MAYARA AMARAL DORNELLES": "MAYARA.DORNELLES",
+    "PEDRO ARTHUR ALVES DE FREITAS": "PEDRO.FFREITAS",
+    "PRISCILA DA SILVA LIMA": "PRISCILA.LIMA",
+}
+
 # Tipos de servico com dono exclusivo, independentemente da zona da OS.
 # 106008 Erro de Leitura e 206006 Retificacao de Disponibilidade: Pedro e
 # Amanda, divididos por regiao (ESPECIALISTA_ZONAS logo abaixo).
@@ -771,6 +790,21 @@ def norm_cidade(nome: str) -> str:
     s = unicodedata.normalize("NFKD", str(nome))
     s = "".join(c for c in s if not unicodedata.combining(c))
     return " ".join(s.lower().replace("-", " ").split())
+
+
+def norm_login(valor) -> str:
+    """Normaliza login de usuario (ignora . _ - espaco e caixa) para comparar.
+
+    Ex.: 'CLEVER.JUNIOR' e 'CLEVER_JUNIOR' viram 'cleverjunior'.
+    """
+    s = unicodedata.normalize("NFKD", str(valor))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return re.sub(r"[._\s-]+", "", s.strip().lower())
+
+
+# Logins da equipe normalizados, para filtrar encerradas por quem esta na
+# distribuicao (desconsidera usuarios divergentes).
+LOGINS_EQUIPE = {norm_login(v) for v in EQUIPE_LOGINS.values()}
 
 
 COL_USUARIO_ENC = "usuario encerramento"
@@ -1836,6 +1870,10 @@ if st.session_state.is_admin:
             if selected_tipos and "Tipo de Solicitação" in df_e.columns:
                 df_e = df_e[df_e["Tipo de Solicitação"].isin(selected_tipos)]
 
+            # Considera apenas quem esta na distribuicao; usuarios divergentes
+            # (de outras equipes) sao desconsiderados.
+            df_e = df_e[df_e[col_enc].map(norm_login).isin(LOGINS_EQUIPE)]
+
             # O encerramento final vem da coluna "Ocorrencia Encerramento".
             # So contam 0-EXECUTADO (executadas), SUSPENSO (suspensas) e
             # INDEFERIDO (indeferidas); as demais ocorrencias sao tentativas
@@ -1863,12 +1901,19 @@ if st.session_state.is_admin:
                 st.caption("Relatório sem coluna 'Ocorrência Encerramento'; "
                            "contabilizando todas as encerradas.")
 
-            # Filtro por data de encerramento (pre-selecionado: hoje)
+            # Filtro por data de encerramento (pre-selecionado: hoje).
+            # Usa SOMENTE a coluna de Data Encerramento, nunca Data Pedido.
             col_data_enc = next(
-                (c for c in df_e.columns
-                 if "data" in norm_cidade(c) and "encerr" in norm_cidade(c)),
+                (c for c in df_e.columns if norm_cidade(c) == "data encerramento"),
                 None,
             )
+            if col_data_enc is None:
+                col_data_enc = next(
+                    (c for c in df_e.columns
+                     if "data" in norm_cidade(c) and "encerr" in norm_cidade(c)
+                     and "pedido" not in norm_cidade(c)),
+                    None,
+                )
             if col_data_enc is not None:
                 df_e = df_e.assign(
                     _data_enc=pd.to_datetime(df_e[col_data_enc], errors="coerce"))
