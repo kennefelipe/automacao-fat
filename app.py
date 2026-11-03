@@ -658,6 +658,8 @@ def distribute_os(df):
         elif info.get("distribute_all"):
             active_list = [c for c in active_collabs
                            if c not in FORA_DA_REDISTRIBUICAO]
+            if not active_list:  # ninguem elegivel: nao perde as OS
+                active_list = list(active_collabs.keys())
             if active_list:
                 chunks = [os_ausente.iloc[i::len(active_list)] for i in range(len(active_list))]
                 for idx, ac in enumerate(active_list):
