@@ -10,6 +10,7 @@ import json
 import os
 import re
 import unicodedata
+from html import escape as _esc
 
 icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
 # ---------------------------------------------------------------------------
@@ -31,253 +32,18 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# CSS customizado - design escuro com gradiente azul
+# Visual: design system (assets/hub.css) e navegacao em pilula (assets/hub_nav.js)
 # ---------------------------------------------------------------------------
-st.markdown("""
-<style>
-    /* Fundo principal */
-    .stApp {
-        background: linear-gradient(135deg, #0A1628 0%, #0F2044 50%, #0A1628 100%);
-    }
-
-    /* Encosta o conteudo mais no topo, para a logo subir na tela */
-    .stMainBlockContainer,
-    div[data-testid="stMainBlockContainer"],
-    section.main > div.block-container {
-        padding-top: 1.6rem;
-    }
-
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0D1B2E 0%, #162D50 100%);
-        border-right: 1px solid rgba(255,255,255,0.05);
-    }
-
-    /* Cards de metricas */
-    .metric-card {
-        border-radius: 16px;
-        padding: 24px 28px;
-        text-align: left;
-        position: relative;
-        overflow: hidden;
-        min-height: 130px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    .metric-card .metric-icon {
-        position: absolute;
-        top: 16px;
-        left: 20px;
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-    }
-    .metric-card .metric-value {
-        font-size: 42px;
-        font-weight: 800;
-        line-height: 1;
-        margin-top: 40px;
-    }
-    .metric-card .metric-label {
-        font-size: 13px;
-        margin-top: 6px;
-        opacity: 0.85;
-        line-height: 1.3;
-    }
-
-    /* Card laranja */
-    .card-orange {
-        background: linear-gradient(135deg, #FF9A2E 0%, #FFB347 100%);
-        color: #1a1a1a;
-    }
-    .card-orange .metric-icon {
-        background: rgba(255,255,255,0.3);
-        color: #1a1a1a;
-    }
-
-    /* Card ciano */
-    .card-cyan {
-        background: linear-gradient(135deg, #00D4AA 0%, #4DE8C8 100%);
-        color: #1a1a1a;
-    }
-    .card-cyan .metric-icon {
-        background: rgba(255,255,255,0.3);
-        color: #1a1a1a;
-    }
-
-    /* Card branco */
-    .card-white {
-        background: linear-gradient(135deg, #E8EDF5 0%, #FFFFFF 100%);
-        color: #1a1a1a;
-    }
-    .card-white .metric-icon {
-        background: rgba(0,150,100,0.15);
-        color: #00966A;
-    }
-
-    /* Card azul escuro */
-    .card-dark {
-        background: linear-gradient(135deg, #1A2D4A 0%, #243B5C 100%);
-        color: #FFFFFF;
-        border: 1px solid rgba(255,255,255,0.08);
-    }
-    .card-dark .metric-icon {
-        background: rgba(0,200,150,0.15);
-        color: #00C896;
-    }
-
-    /* Card vermelho */
-    .card-red {
-        background: linear-gradient(135deg, #FF4D4D 0%, #FF6B6B 100%);
-        color: #FFFFFF;
-    }
-    .card-red .metric-icon {
-        background: rgba(255,255,255,0.25);
-        color: #FFFFFF;
-    }
-
-    /* Cards compactos (tela inicial) */
-    .metric-card.compact {
-        padding: 14px 18px;
-        min-height: 96px;
-        border-radius: 14px;
-    }
-    .metric-card.compact .metric-icon {
-        top: 12px;
-        left: 16px;
-        width: 30px;
-        height: 30px;
-        font-size: 14px;
-    }
-    .metric-card.compact .metric-value {
-        font-size: 28px;
-        margin-top: 26px;
-    }
-    .metric-card.compact .metric-label {
-        font-size: 11px;
-        margin-top: 4px;
-    }
-
-    /* Tabela customizada */
-    .data-table {
-        background: rgba(19, 29, 53, 0.8);
-        border-radius: 12px;
-        padding: 20px;
-        border: 1px solid rgba(255,255,255,0.06);
-    }
-
-    /* Titulo da secao */
-    .section-title {
-        color: #FFFFFF;
-        font-size: 16px;
-        font-weight: 600;
-        margin-bottom: 16px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-
-    /* Header */
-    .main-header {
-        padding: 0 0 8px 0;
-    }
-    .main-header .subtitle {
-        color: rgba(255,255,255,0.5);
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 3px;
-        margin-bottom: 4px;
-    }
-    .main-header h1 {
-        color: #FFFFFF;
-        font-size: 36px;
-        font-weight: 800;
-        margin: 0;
-    }
-
-    /* Esconder decoracao streamlit */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header[data-testid="stHeader"] {background: transparent;}
-
-    /* Barra de servicos */
-    .service-bar {
-        background: rgba(19, 29, 53, 0.6);
-        border-radius: 8px;
-        padding: 10px 16px;
-        margin: 4px 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border: 1px solid rgba(255,255,255,0.04);
-    }
-    .service-bar .service-name {
-        color: #FFFFFF;
-        font-size: 13px;
-        font-weight: 500;
-    }
-    .service-bar .service-count {
-        color: #00C896;
-        font-size: 16px;
-        font-weight: 700;
-    }
-
-    /* Badges */
-    .badge {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 600;
-    }
-    .badge-success { background: rgba(0,200,150,0.15); color: #00C896; }
-    .badge-warning { background: rgba(255,154,46,0.15); color: #FF9A2E; }
-    .badge-danger { background: rgba(255,77,77,0.15); color: #FF4D4D; }
-
-    /* Streamlit elements */
-    .stSelectbox label, .stFileUploader label, .stMultiSelect label {
-        color: rgba(255,255,255,0.7) !important;
-    }
-    div[data-testid="stMetric"] {
-        background: rgba(19, 29, 53, 0.6);
-        border: 1px solid rgba(255,255,255,0.06);
-        border-radius: 12px;
-        padding: 16px;
-    }
-    .stDownloadButton > button {
-        background: linear-gradient(135deg, #00C896 0%, #00A87A 100%) !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        padding: 8px 24px !important;
-    }
-    .stDownloadButton > button:hover {
-        background: linear-gradient(135deg, #00A87A 0%, #008B64 100%) !important;
-    }
-
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background: transparent;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background: rgba(19, 29, 53, 0.6);
-        border-radius: 8px;
-        color: rgba(255,255,255,0.6);
-        border: 1px solid rgba(255,255,255,0.06);
-        padding: 8px 20px;
-    }
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #00C896 0%, #00A87A 100%) !important;
-        color: #FFFFFF !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+_ASSETS = os.path.join(os.path.dirname(__file__), "assets")
+with open(os.path.join(_ASSETS, "hub.css"), encoding="utf-8") as _f:
+    st.markdown(f"<style>{_f.read()}</style>", unsafe_allow_html=True)
+with open(os.path.join(_ASSETS, "hub_nav.js"), encoding="utf-8") as _f:
+    _HUB_NAV_JS = _f.read()
+try:
+    st.html(f'<span class="hub-js-anchor"></span><script>{_HUB_NAV_JS}</script>',
+            unsafe_allow_javascript=True)
+except TypeError:
+    pass  # Streamlit antigo sem JS no st.html: a aba ativa segue pintada so pelo CSS
 
 # ---------------------------------------------------------------------------
 # MAPEAMENTO DE ZONAS POR COLABORADOR
@@ -740,14 +506,76 @@ def to_excel_download(df):
     return output.getvalue()
 
 
-def render_metric_card(icon, value, label, card_class):
-    return f"""
-    <div class="metric-card {card_class}">
-        <div class="metric-icon">{icon}</div>
-        <div class="metric-value">{value}</div>
-        <div class="metric-label">{label}</div>
-    </div>
+# Icones de linha (estilo Lucide), desenhados em SVG para herdar a cor do texto.
+ICONES = {
+    "clipboard": '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+    "pin": '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+    "layers": '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+    "calendar": '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+    "alarm": '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/>',
+    "activity": '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+    "table": '<path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/>',
+    "map": '<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/>',
+    "building": '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
+    "users": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    "check": '<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
+    "history": '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+    "shield": '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+    "upload": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+}
+
+
+def svg_icon(nome, tam=18):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{tam}" height="{tam}" '
+            'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{ICONES[nome]}</svg>')
+
+
+def render_metric_card(icon, value, label, accent):
+    """Card de indicador em vidro; accent: teal, ice, slate, orange ou red."""
+    return (f'<div class="hub-kpi hub-kpi--{accent}">'
+            f'<div class="hub-kpi__icon">{svg_icon(icon)}</div>'
+            f'<div class="hub-kpi__value">{value}</div>'
+            f'<div class="hub-kpi__label">{label}</div></div>')
+
+
+def panel_header(titulo, icon, chip=None, variante=None, chip_accent=False):
+    """Cabecalho de painel: icone + titulo a esquerda, chip de contexto a direita.
+
+    variante="card" transforma a coluna em painel; "tab" transforma a aba.
     """
+    classe = "hub-ph" + (f" hub-ph--{variante}" if variante else "")
+    chip_html = ""
+    if chip:
+        classe_chip = "hub-chip hub-chip--accent" if chip_accent else "hub-chip"
+        ponto = '<span class="hub-chip__dot"></span>' if chip_accent else ""
+        chip_html = f'<span class="{classe_chip}">{ponto}{chip}</span>'
+    return (f'<div class="{classe}"><div class="hub-ph__title">'
+            f'<span class="hub-ph__icon">{svg_icon(icon, 16)}</span>'
+            f'<span>{_esc(titulo)}</span></div>{chip_html}</div>')
+
+
+def fmt_int(n):
+    return f"{int(n):,}".replace(",", ".")
+
+
+PLOT_FONT = "Plus Jakarta Sans, Inter, Segoe UI, sans-serif"
+
+
+def estilo_grafico(fig, **layout):
+    """Acabamento comum dos graficos: fundo transparente, eixos discretos, tooltip escuro."""
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family=PLOT_FONT, color="rgba(255,255,255,0.68)", size=12),
+        hoverlabel=dict(
+            bgcolor="#0F2044",
+            bordercolor="rgba(0,212,170,0.6)",
+            font=dict(family=PLOT_FONT, color="#FFFFFF", size=12),
+        ),
+        **layout,
+    )
+    return fig
 
 
 # ---------------------------------------------------------------------------
@@ -1255,12 +1083,10 @@ with st.sidebar:
                 else:
                     st.error("Credenciais invalidas")
     else:
-        st.markdown("""
-        <div style="background: rgba(0,200,150,0.1); border: 1px solid rgba(0,200,150,0.3);
-                    border-radius: 8px; padding: 10px; text-align: center; margin-bottom: 10px;">
-            <span style="color: #00C896; font-weight: 600;">Admin Conectado</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            '<div class="hub-status"><span class="hub-status__dot"></span>Admin Conectado</div>',
+            unsafe_allow_html=True,
+        )
         if st.button("Sair", key="btn_logout", use_container_width=True):
             st.session_state.is_admin = False
             st.rerun()
@@ -1279,7 +1105,7 @@ with st.sidebar:
         pendente = st.session_state.pop("_colab_click_pending", None)
         if pendente in colab_names:
             st.session_state["colab_select"] = pendente
-        st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Colaborador</p>', unsafe_allow_html=True)
+        st.markdown('<p class="hub-label">Colaborador</p>', unsafe_allow_html=True)
         selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select", label_visibility="collapsed")
     else:
         selected_colab = "Todos"
@@ -1287,7 +1113,7 @@ with st.sidebar:
         # Filtro por tipo de servico (multiplos; lista vazia = todos)
     if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
         tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
-        st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 8px;">Tipo de Serviço</p>', unsafe_allow_html=True)
+        st.markdown('<p class="hub-label">Tipo de Serviço</p>', unsafe_allow_html=True)
         selected_tipos = st.multiselect(
             "Tipo de Serviço", tipos_disponiveis, key="tipo_multiselect",
             placeholder="Todos", label_visibility="collapsed",
@@ -1299,8 +1125,8 @@ with st.sidebar:
         st.markdown("---")
 
         # Upload do arquivo
-    st.markdown('<p style="color: rgba(255,255,255,0.6); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Carregar Extração</p>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
+    st.markdown('<p class="hub-label">Carregar Extração</p>', unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("Carregar extração", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
 
     if uploaded_file is not None:
         try:
@@ -1325,11 +1151,10 @@ with st.sidebar:
             st.error(f"Erro ao carregar: {e}")
 
     st.markdown("---")
-    st.markdown(f"""
-    <div style="text-align: center; color: rgba(255,255,255,0.3); font-size: 11px; padding: 10px 0;">
-        Atualizado em {datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M")}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="hub-updated">Atualizado em {datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M")}</div>',
+        unsafe_allow_html=True,
+    )
 
 # ---------------------------------------------------------------------------
 # Conteudo principal
@@ -1337,16 +1162,14 @@ with st.sidebar:
 df = st.session_state.df_loaded
 
 if df is None:
-    st.markdown("""
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;
-                min-height: 60vh; text-align: center;">
-        <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.3;">📂</div>
-        <h2 style="color: rgba(255,255,255,0.6); font-weight: 400;">Nenhum arquivo carregado</h2>
-        <p style="color: rgba(255,255,255,0.3); max-width: 400px;">
-            Faça o upload da extração do SCAE na barra lateral para iniciar a distribuição das ordens de serviço.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="hub-empty">'
+        f'<div class="hub-empty__icon">{svg_icon("upload", 28)}</div>'
+        '<h2>Nenhum arquivo carregado</h2>'
+        '<p>Faça o upload da extração do SCAE na barra lateral para iniciar a '
+        'distribuição das ordens de serviço.</p></div>',
+        unsafe_allow_html=True,
+    )
     st.stop()
 
 # ---------------------------------------------------------------------------
@@ -1426,36 +1249,33 @@ if show_cards:
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.markdown(render_metric_card(
-            "\U0001f4cb", f"{total_os:,}".replace(",", "."),
-            "OS's em aberto", "card-cyan compact"
+            "clipboard", fmt_int(total_os), "OS's em aberto", "teal"
         ), unsafe_allow_html=True)
     with col2:
         if cidade_atrasada != "-":
-            cidade_html = (f'<span style="font-size:15px">{cidade_atrasada}</span> '
-                           f'<span style="font-size:20px;font-weight:900">({qtd_cidade_atrasada})</span>')
+            cidade_html = (f'<span class="hub-kpi__city" title="{_esc(cidade_atrasada)}">'
+                           f'{_esc(cidade_atrasada)}</span> '
+                           f'<span class="hub-kpi__count">({qtd_cidade_atrasada})</span>')
         else:
             cidade_html = "-"
         st.markdown(render_metric_card(
-            "\U0001f3d9️", cidade_html,
-            "Cidade mais atrasada", "card-white compact"
+            "pin", cidade_html, "Cidade mais atrasada", "ice"
         ), unsafe_allow_html=True)
     with col3:
         st.markdown(render_metric_card(
-            "\U0001f4cb", str(tipos_count),
-            "Tipos de serviços", "card-dark compact"
+            "layers", str(tipos_count), "Tipos de serviços", "slate"
         ), unsafe_allow_html=True)
     with col4:
         dia_fmt = dia_mais_antigo.strftime("%d/%m") if dia_mais_antigo else "--"
         st.markdown(render_metric_card(
-            "\U0001f4c5", dia_fmt,
-            f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "card-orange compact"
+            "calendar", dia_fmt, f"Dia mais atrasado ({qtd_dia_antigo} OS's)", "orange"
         ), unsafe_allow_html=True)
     with col5:
         tmax_txt = f"TMAX {tmax}" if tmax is not None else "-"
         tmax_label = (f"Trâmite mais antigo: {tmax_data.strftime('%d/%m')}"
                       if tmax_data else "Sem OS em aberto")
         st.markdown(render_metric_card(
-            "⏱️", tmax_txt, tmax_label, "card-red compact"
+            "alarm", tmax_txt, tmax_label, "red"
         ), unsafe_allow_html=True)
 elif not is_todos and selected_colab in distribution and df_colab.empty:
     st.info("Nenhuma OS atribuida para este colaborador.")
@@ -1472,8 +1292,6 @@ with tab_acomp:
     # ---------------------------------------------------------------------------
     # Acompanhamento pelo Tramite (grafico interativo - clique no dia)
     # ---------------------------------------------------------------------------
-    st.markdown('<div class="section-title">Acompanhamento pelo Tramite</div>', unsafe_allow_html=True)
-
     os_dia_df = os_por_dia.reset_index()
     os_dia_df.columns = ["Data", "Quantidade"]
     os_dia_df = os_dia_df[os_dia_df["Quantidade"] > 0]
@@ -1482,53 +1300,57 @@ with tab_acomp:
 
     selected_dia = None
 
-    if not os_dia_df.empty:
-        fig_os_dia = go.Figure(
-            go.Bar(
-                x=os_dia_df["Data_fmt"],
-                y=os_dia_df["Quantidade"],
-                marker=dict(
-                    color="#00D4AA",
-                    cornerradius=4,
-                ),
-                text=os_dia_df["Quantidade"],
-                textposition="outside",
-                textfont=dict(color="#FFFFFF", size=13, family="sans-serif"),
+    with st.container(key="hub-panel-tramite"):
+        n_dias = len(os_dia_df)
+        st.markdown(panel_header(
+            "Acompanhamento pelo Trâmite", "activity",
+            f"{fmt_int(total_os)} OS · {n_dias} dia{'s' if n_dias != 1 else ''}",
+        ), unsafe_allow_html=True)
+
+        if not os_dia_df.empty:
+            fig_os_dia = go.Figure(
+                go.Bar(
+                    x=os_dia_df["Data_fmt"],
+                    y=os_dia_df["Quantidade"],
+                    marker=dict(color="#00D4AA", cornerradius=4),
+                    text=os_dia_df["Quantidade"],
+                    textposition="outside",
+                    cliponaxis=False,
+                    textfont=dict(color="rgba(255,255,255,0.88)", size=12),
+                    hovertemplate="<b>%{x}</b><br>%{y} OS em aberto<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>",
+                    selected=dict(marker=dict(opacity=1)),
+                    unselected=dict(marker=dict(opacity=0.3)),
+                )
             )
-        )
-        fig_os_dia.update_layout(
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=0, r=0, t=10, b=0),
-            height=300,
-            xaxis=dict(
-                color="rgba(255,255,255,0.6)",
-                tickfont=dict(size=12),
-                showgrid=False,
-                showline=False,
-            ),
-            yaxis=dict(
-                visible=False,
-                showgrid=False,
-            ),
-            bargap=0.3,
-        )
+            estilo_grafico(
+                fig_os_dia,
+                margin=dict(l=0, r=0, t=24, b=0),
+                height=300,
+                xaxis=dict(
+                    color="rgba(255,255,255,0.55)",
+                    tickfont=dict(size=12),
+                    showgrid=False,
+                    showline=False,
+                ),
+                yaxis=dict(visible=False, showgrid=False),
+                bargap=0.42,
+            )
 
-        chart_key = f"chart_tramite_{selected_colab}"
-        event = st.plotly_chart(
-            fig_os_dia,
-            use_container_width=True,
-            config={"displayModeBar": False},
-            on_select="rerun",
-            key=chart_key,
-        )
+            chart_key = f"chart_tramite_{selected_colab}"
+            event = st.plotly_chart(
+                fig_os_dia,
+                use_container_width=True,
+                config={"displayModeBar": False},
+                on_select="rerun",
+                key=chart_key,
+            )
 
-        if event and hasattr(event, "selection") and event.selection and event.selection.points:
-            clicked_fmt = event.selection.points[0].get("x")
-            if clicked_fmt:
-                match = os_dia_df[os_dia_df["Data_fmt"] == clicked_fmt]
-                if not match.empty:
-                    selected_dia = match.iloc[0]["Data"]
+            if event and hasattr(event, "selection") and event.selection and event.selection.points:
+                clicked_fmt = event.selection.points[0].get("x")
+                if clicked_fmt:
+                    match = os_dia_df[os_dia_df["Data_fmt"] == clicked_fmt]
+                    if not match.empty:
+                        selected_dia = match.iloc[0]["Data"]
 
     # ---------------------------------------------------------------------------
     # Filtro por dia (aplicado nas secoes abaixo)
@@ -1537,12 +1359,9 @@ with tab_acomp:
         df_dia = df_view[df_view["Data Tramite"].dt.date == selected_dia]
         dia_label = selected_dia.strftime("%d/%m/%Y")
         st.markdown(
-            '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,170,0.12);'
-            'border:1px solid rgba(0,212,170,0.3);border-radius:20px;padding:6px 16px;margin:4px 0 12px 0;">'
-            '<span style="color:#00D4AA;font-size:13px;font-weight:600;">'
-            '\U0001f4c5 Filtrado por: ' + dia_label + '</span>'
-            '<span style="color:rgba(255,255,255,0.4);font-size:11px;">Clique novamente na barra para limpar</span>'
-            '</div>',
+            '<span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
+            f'Filtrado por: {dia_label}'
+            '<span class="hub-chip__hint">&nbsp;· clique de novo na barra para limpar</span></span>',
             unsafe_allow_html=True,
         )
     else:
@@ -1550,41 +1369,40 @@ with tab_acomp:
 
     total_filtrado = len(df_dia)
 
-    st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
-
     # ---------------------------------------------------------------------------
-    # Quantidade por tipo de servico - Grafico de barras horizontal amarelo
+    # Quantidade por tipo de servico - barras horizontais (laranja)
     # ---------------------------------------------------------------------------
     titulo_tipo = "Distribuição por Tipo de Serviço"
     if selected_dia is not None:
         titulo_tipo += " — " + selected_dia.strftime("%d/%m/%Y")
-    st.markdown(f'<div class="section-title">{titulo_tipo}</div>', unsafe_allow_html=True)
 
     tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
     max_count = tipo_counts.max() if not tipo_counts.empty else 1
 
-    if tipo_counts.empty:
-        st.caption("Nenhuma OS para esta data.")
-    else:
-        for tipo, count in tipo_counts.items():
-            pct = (count / total_filtrado) * 100 if total_filtrado > 0 else 0
-            bar_width = (count / max_count) * 100
-            st.markdown(
-                '<div style="margin-bottom: 10px;">'
-                '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">'
-                f'<span style="color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;">{tipo}</span>'
-                f'<span style="color: #FFB347; font-size: 14px; font-weight: 700;">{count} '
-                f'<span style="font-size:11px; color: rgba(255,255,255,0.4);">({pct:.1f}%)</span></span>'
-                '</div>'
-                '<div style="background: rgba(255,255,255,0.06); border-radius: 6px; height: 28px; overflow: hidden;">'
-                f'<div style="background: linear-gradient(90deg, #FF9A2E, #FFB347); width: {bar_width}%;'
-                ' height: 100%; border-radius: 6px; transition: width 0.5s ease;"></div>'
-                '</div>'
-                '</div>',
-                unsafe_allow_html=True,
-            )
+    with st.container(key="hub-panel-tipos"):
+        n_tipos = len(tipo_counts)
+        st.markdown(panel_header(
+            titulo_tipo, "layers", f"{n_tipos} tipo{'s' if n_tipos != 1 else ''}",
+        ), unsafe_allow_html=True)
 
-    st.markdown("<div style='height: 24px'></div>", unsafe_allow_html=True)
+        if tipo_counts.empty:
+            st.caption("Nenhuma OS para esta data.")
+        else:
+            barras = []
+            for i, (tipo, count) in enumerate(tipo_counts.items()):
+                pct = (count / total_filtrado) * 100 if total_filtrado > 0 else 0
+                bar_width = (count / max_count) * 100
+                barras.append(
+                    f'<div class="hub-bar" style="--i:{i}">'
+                    '<div class="hub-bar__row">'
+                    f'<span class="hub-bar__name">{_esc(str(tipo))}</span>'
+                    f'<span class="hub-bar__val">{fmt_int(count)}<em>{pct:.1f}%</em></span>'
+                    '</div>'
+                    f'<div class="hub-bar__track"><div class="hub-bar__fill" style="width:{bar_width:.2f}%"></div></div>'
+                    '</div>'
+                )
+            st.markdown('<div class="hub-bars">' + "".join(barras) + "</div>",
+                        unsafe_allow_html=True)
 
     # ---------------------------------------------------------------------------
     # Tabela e Download (colaborador selecionado OU dia selecionado)
@@ -1592,56 +1410,58 @@ with tab_acomp:
     show_table = (not is_todos or selected_dia is not None) and not df_dia.empty
 
     if show_table:
-        titulo_tabela = "Detalhamento"
-        if not is_todos:
-            titulo_tabela += " — " + selected_colab.split("(")[0].strip()
-        if selected_dia is not None:
-            titulo_tabela += " — " + selected_dia.strftime("%d/%m/%Y")
-        st.markdown(f'<div class="section-title">{titulo_tabela}</div>', unsafe_allow_html=True)
+        with st.container(key="hub-panel-detalhe"):
+            titulo_tabela = "Detalhamento"
+            if not is_todos:
+                titulo_tabela += " — " + selected_colab.split("(")[0].strip()
+            if selected_dia is not None:
+                titulo_tabela += " — " + selected_dia.strftime("%d/%m/%Y")
 
-        available_cols = colunas_visiveis(df_dia)
-        df_display = df_dia[available_cols].copy()
-        df_display = df_display.sort_values("Data Tramite", ascending=True)
+            available_cols = colunas_visiveis(df_dia)
+            df_display = df_dia[available_cols].copy()
+            df_display = df_display.sort_values("Data Tramite", ascending=True)
 
-        for col in ["Data Tramite", "Data Pedido"]:
-            if col in df_display.columns:
-                df_display[col] = df_display[col].dt.strftime("%d/%m/%Y %H:%M")
+            st.markdown(panel_header(
+                titulo_tabela, "table", f"{fmt_int(len(df_display))} OS",
+            ), unsafe_allow_html=True)
 
-        st.dataframe(
-            df_display,
-            use_container_width=True,
-            height=min(38 + 4 * 35, 38 + len(df_display) * 35),
-            hide_index=True,
-        )
+            for col in ["Data Tramite", "Data Pedido"]:
+                if col in df_display.columns:
+                    df_display[col] = df_display[col].dt.strftime("%d/%m/%Y %H:%M")
 
-        st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                height=min(38 + 4 * 35, 38 + len(df_display) * 35),
+                hide_index=True,
+            )
 
-        excel_data = to_excel_download(df_dia)
-        label_parts = ["Baixar Excel"]
-        if not is_todos:
-            label_parts.append(selected_colab.split("(")[0].strip())
-        if selected_dia is not None:
-            label_parts.append(selected_dia.strftime("%d/%m"))
-        download_label = " - ".join(label_parts)
+            excel_data = to_excel_download(df_dia)
+            label_parts = ["Baixar Excel"]
+            if not is_todos:
+                label_parts.append(selected_colab.split("(")[0].strip())
+            if selected_dia is not None:
+                label_parts.append(selected_dia.strftime("%d/%m"))
+            download_label = " - ".join(label_parts)
 
-        fname_parts = ["OS"]
-        if not is_todos:
-            fname_parts.append(selected_colab.replace(" ", "_"))
-        if selected_dia is not None:
-            fname_parts.append(selected_dia.strftime("%Y%m%d"))
-        fname_parts.append(datetime.now(BR_TZ).strftime("%H%M"))
-        download_fname = "_".join(fname_parts) + ".xlsx"
+            fname_parts = ["OS"]
+            if not is_todos:
+                fname_parts.append(selected_colab.replace(" ", "_"))
+            if selected_dia is not None:
+                fname_parts.append(selected_dia.strftime("%Y%m%d"))
+            fname_parts.append(datetime.now(BR_TZ).strftime("%H%M"))
+            download_fname = "_".join(fname_parts) + ".xlsx"
 
-        downloaded = st.download_button(
-            label=download_label,
-            data=excel_data,
-            file_name=download_fname,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"btn_download_{hash(str(selected_colab) + str(selected_dia)) % 99999}",
-            use_container_width=True,
-        )
-        if downloaded and not is_todos:
-            add_audit_entry(selected_colab, "download")
+            downloaded = st.download_button(
+                label=download_label,
+                data=excel_data,
+                file_name=download_fname,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"btn_download_{hash(str(selected_colab) + str(selected_dia)) % 99999}",
+                use_container_width=True,
+            )
+            if downloaded and not is_todos:
+                add_audit_entry(selected_colab, "download")
 
 
 # ---------------------------------------------------------------------------
@@ -1662,11 +1482,8 @@ with tab_mapa:
 
     with col_filtro:
         if is_todos:
-            st.markdown(
-                '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
-                ' text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Visualizar</p>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(panel_header("Visualização", "map", variante="card"),
+                        unsafe_allow_html=True)
             modo_mapa = st.radio(
                 "Modo do mapa",
                 ["Por responsavel", "Onde esta o atraso"],
@@ -1679,30 +1496,22 @@ with tab_mapa:
         resumo = mapa_resumo(df_mapa) if is_todos else []
 
         if is_todos and modo_mapa == "Por responsavel" and resumo:
-            st.markdown(
-                '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
-                ' text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 6px 0;">Responsaveis</p>',
-                unsafe_allow_html=True,
-            )
+            st.markdown('<p class="hub-label">Responsáveis</p>', unsafe_allow_html=True)
             chave = []
             for _n, curto, cor, n_cid, n_os in resumo:
                 chave.append(
-                    '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">'
-                    f'<span style="width:11px;height:11px;border-radius:3px;background:{cor};'
-                    'flex:0 0 auto;margin-top:3px;"></span>'
-                    f'<span style="color:rgba(255,255,255,0.82);font-size:11px;line-height:1.3;">{curto}'
-                    f'<br><span style="color:rgba(255,255,255,0.38);font-size:10px;">'
-                    f'{n_cid} cidades &middot; {n_os} OS</span></span></div>'
+                    '<div class="hub-legend__item">'
+                    f'<span class="hub-legend__sw" style="background:{cor}"></span>'
+                    f'<span class="hub-legend__name">{_esc(curto)}'
+                    f'<span class="hub-legend__meta">{n_cid} cidades &middot; {fmt_int(n_os)} OS</span>'
+                    '</span></div>'
                 )
-            st.markdown("".join(chave), unsafe_allow_html=True)
+            st.markdown('<div class="hub-legend">' + "".join(chave) + "</div>",
+                        unsafe_allow_html=True)
         elif not is_todos:
             lista = cidades_do_colaborador(df_dia, selected_colab)
-            st.markdown(
-                '<p style="color: rgba(255,255,255,0.6); font-size: 12px;'
-                ' text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">'
-                f'Suas cidades ({len(lista)})</p>',
-                unsafe_allow_html=True,
-            )
+            st.markdown(panel_header("Suas cidades", "pin", str(len(lista)), variante="card"),
+                        unsafe_allow_html=True)
             itens = []
             for cidade, qtd in lista:
                 destaque = "rgba(255,255,255,0.82)" if qtd else "rgba(255,255,255,0.45)"
@@ -1723,6 +1532,9 @@ with tab_mapa:
             )
 
     with col_mapa:
+        st.markdown(panel_header("Mapa do Rio Grande do Sul", "map",
+                                 "Role para zoom · arraste para mover", variante="card"),
+                    unsafe_allow_html=True)
         fig_mapa, nota_mapa = build_mapa(df_dia if not is_todos else df_mapa, foco_mapa, modo_mapa)
         if fig_mapa is None:
             st.caption(nota_mapa or "Mapa indisponivel.")
@@ -1742,14 +1554,15 @@ with tab_mapa:
 # PAINEL ADMINISTRATIVO
 # ===========================================================================
 if st.session_state.is_admin:
-    st.markdown("<div style='height: 30px'></div>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, rgba(0,200,150,0.08) 0%, rgba(0,100,80,0.08) 100%);
-                border: 1px solid rgba(0,200,150,0.2); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px;">
-        <span style="color: #00C896; font-size: 18px; font-weight: 700;">Painel Administrativo</span>
-        <span style="color: rgba(255,255,255,0.4); font-size: 12px; margin-left: 12px;">Acesso restrito</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div style='height: 18px'></div>", unsafe_allow_html=True)
+    st.markdown(
+        '<div class="hub-admin"><div class="hub-admin__title">'
+        f'<span class="hub-kpi__icon" style="position:static">{svg_icon("shield")}</span>'
+        '<div><strong>Painel Administrativo</strong><small>Visão gerencial da equipe</small></div>'
+        '</div><span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
+        'Acesso restrito</span></div>',
+        unsafe_allow_html=True,
+    )
 
     tab_overview, tab_encerradas, tab_absence, tab_audit = st.tabs(
         ["Visao Geral", "Encerradas", "Cobertura de Ausencias", "Historico / Auditoria"]
@@ -1770,18 +1583,16 @@ if st.session_state.is_admin:
             filtros_ativos.append(selected_dia.strftime("%d/%m/%Y"))
         if filtros_ativos:
             st.markdown(
-                '<div style="display:inline-flex;align-items:center;gap:8px;'
-                'background:rgba(0,212,170,0.12);border:1px solid rgba(0,212,170,0.3);'
-                'border-radius:20px;padding:6px 16px;margin-bottom:12px;">'
-                '<span style="color:#00D4AA;font-size:13px;font-weight:600;">Filtrado por: '
-                + " · ".join(filtros_ativos) + "</span></div>",
+                '<span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
+                'Filtrado por: ' + _esc(" · ".join(filtros_ativos)) + "</span>",
                 unsafe_allow_html=True,
             )
 
         col_chart1, col_chart2 = st.columns(2)
 
         with col_chart1:
-            st.markdown('<div class="section-title">Top 15 Cidades com Mais OS Pendente</div>', unsafe_allow_html=True)
+            st.markdown(panel_header("Top 15 Cidades com Mais OS Pendente", "building",
+                                     "Top 15", variante="card"), unsafe_allow_html=True)
             # df_dia ja carrega dia + tipo + colaborador selecionados no topo
             if "Zona Ligacao" in df_dia.columns and not df_dia.empty:
                 df_city = df_dia.copy()
@@ -1794,21 +1605,18 @@ if st.session_state.is_admin:
                         orientation="h",
                         text=city_counts.values,
                         textposition="outside",
-                        textfont=dict(color="white", size=12, family="Arial"),
-                        marker=dict(
-                            color=city_counts.values,
-                            colorscale=[[0, "#FF6B6B"], [1, "#FF4D4D"]],
-                        ),
+                        cliponaxis=False,
+                        textfont=dict(color="rgba(255,255,255,0.88)", size=12),
+                        marker=dict(color="#FF6B6B", cornerradius=4),
+                        hovertemplate="<b>%{y}</b><br>%{x} OS pendentes<extra></extra>",
                     ))
-                    fig_city.update_layout(
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        font=dict(color="rgba(255,255,255,0.7)", size=12),
+                    estilo_grafico(
+                        fig_city,
                         margin=dict(l=0, r=40, t=10, b=10),
                         height=450,
                         xaxis=dict(visible=False),
-                        yaxis=dict(automargin=True),
-                        bargap=0.3,
+                        yaxis=dict(automargin=True, color="rgba(255,255,255,0.72)"),
+                        bargap=0.38,
                     )
                     st.plotly_chart(fig_city, use_container_width=True, config={"displayModeBar": False})
                 else:
@@ -1817,7 +1625,6 @@ if st.session_state.is_admin:
                 st.info("Sem OS para os filtros selecionados.")
 
         with col_chart2:
-            st.markdown('<div class="section-title">OS Pendente por Colaborador</div>', unsafe_allow_html=True)
             # Ranking recalculado sobre o dia + tipo selecionados (todos os colaboradores)
             dist_adm = distribute_os(df_mapa)
             colab_os = {name: len(d) for name, d in dist_adm.items() if not d.empty}
@@ -1826,6 +1633,9 @@ if st.session_state.is_admin:
             names = [n.split("(")[0].strip() for n in full_names]
             values = list(colab_os.values())
             short_to_full = {c.split("(")[0].strip(): c for c in COLABORADORES_ZONAS}
+            st.markdown(panel_header("OS Pendente por Colaborador", "users",
+                                     f"{len(values)} colaboradores", variante="card"),
+                        unsafe_allow_html=True)
             if values:
                 # destaca o colaborador escolhido; esmaece os demais
                 if is_todos:
@@ -1839,18 +1649,18 @@ if st.session_state.is_admin:
                     orientation="h",
                     text=values,
                     textposition="outside",
-                    textfont=dict(color="white", size=12, family="Arial"),
-                    marker=dict(color=cores),
+                    cliponaxis=False,
+                    textfont=dict(color="rgba(255,255,255,0.88)", size=12),
+                    marker=dict(color=cores, cornerradius=4),
+                    hovertemplate="<b>%{y}</b><br>%{x} OS pendentes<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>",
                 ))
-                fig_colab.update_layout(
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="rgba(255,255,255,0.7)", size=12),
+                estilo_grafico(
+                    fig_colab,
                     margin=dict(l=0, r=40, t=10, b=10),
                     height=450,
                     xaxis=dict(visible=False),
-                    yaxis=dict(automargin=True),
-                    bargap=0.3,
+                    yaxis=dict(automargin=True, color="rgba(255,255,255,0.72)"),
+                    bargap=0.38,
                 )
                 ev_colab = st.plotly_chart(
                     fig_colab, use_container_width=True,
@@ -1874,7 +1684,8 @@ if st.session_state.is_admin:
     # Tab: Encerradas (so existe quando o relatorio traz abertas + encerradas)
     # -----------------------------------------------------------------------
     with tab_encerradas:
-        st.markdown('<div class="section-title">Solicitações Encerradas por Usuário</div>', unsafe_allow_html=True)
+        st.markdown(panel_header("Solicitações Encerradas por Usuário", "check", variante="tab"),
+                    unsafe_allow_html=True)
 
         df_enc = st.session_state.get("df_encerradas")
         col_enc = st.session_state.get("col_encerramento")
@@ -1911,25 +1722,29 @@ if st.session_state.is_admin:
                 st.info("Nenhuma OS encerrada para os filtros selecionados.")
             else:
                 enc_counts = df_e[col_enc].value_counts().sort_values(ascending=True)
-                st.caption(f"Total de encerradas: {int(enc_counts.sum()):,}".replace(",", "."))
+                st.markdown(
+                    '<span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
+                    f'Total de encerradas: {fmt_int(enc_counts.sum())}</span>',
+                    unsafe_allow_html=True,
+                )
                 fig_enc = go.Figure(go.Bar(
                     x=enc_counts.values,
                     y=enc_counts.index,
                     orientation="h",
                     text=enc_counts.values,
                     textposition="outside",
-                    textfont=dict(color="white", size=12, family="Arial"),
-                    marker=dict(color="#00D4AA"),
+                    cliponaxis=False,
+                    textfont=dict(color="rgba(255,255,255,0.88)", size=12),
+                    marker=dict(color="#00D4AA", cornerradius=4),
+                    hovertemplate="<b>%{y}</b><br>%{x} encerradas<extra></extra>",
                 ))
-                fig_enc.update_layout(
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="rgba(255,255,255,0.7)", size=12),
+                estilo_grafico(
+                    fig_enc,
                     margin=dict(l=0, r=40, t=10, b=10),
                     height=max(300, 28 * len(enc_counts) + 40),
                     xaxis=dict(visible=False),
-                    yaxis=dict(automargin=True),
-                    bargap=0.3,
+                    yaxis=dict(automargin=True, color="rgba(255,255,255,0.72)"),
+                    bargap=0.38,
                 )
                 st.plotly_chart(fig_enc, use_container_width=True,
                                 config={"displayModeBar": False}, key="adm_encerradas")
@@ -1938,7 +1753,9 @@ if st.session_state.is_admin:
     # Tab: Cobertura de Ausencias
     # -----------------------------------------------------------------------
     with tab_absence:
-        st.markdown("Selecione o colaborador ausente e defina o redirecionamento das OS.")
+        st.markdown(panel_header("Cobertura de Ausências", "users", variante="tab"),
+                    unsafe_allow_html=True)
+        st.caption("Selecione o colaborador ausente e defina o redirecionamento das OS.")
 
         if not COLABORADORES_ZONAS:
             st.info("Configure os colaboradores primeiro.")
@@ -2009,7 +1826,9 @@ if st.session_state.is_admin:
     # Tab: Historico / Auditoria
     # -----------------------------------------------------------------------
     with tab_audit:
-        st.markdown("Registro de todas as acoes realizadas no sistema.")
+        st.markdown(panel_header("Histórico / Auditoria", "history", variante="tab"),
+                    unsafe_allow_html=True)
+        st.caption("Registro de todas as ações realizadas no sistema.")
 
         audit_log = load_audit_log()
 
