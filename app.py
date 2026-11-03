@@ -288,8 +288,7 @@ COLABORADORES_ZONAS = {
     "ALEXANDRE PEDROSO LOPES": [],
     "AMANDA BARCELLOS": [],
     "CAROLINE DE OLIVEIRA SANTOS": [10, 17, 35, 49, 58, 67, 75, 76, 80, 84, 90, 91, 95, 98, 103, 109, 113, 120, 121, 124, 125, 133, 135, 141, 144, 147, 150, 151, 175, 197, 207, 212, 214, 215, 219, 235, 237, 295, 297, 405, 412, 413, 418, 421, 429, 447, 451, 455],
-    "CLEVER FANFA SARMENTO JUNIOR": [82, 210, 239],
-    "DAIANE BARROS DE OLIVEIRA": [6, 8, 18, 21, 23, 32, 37, 43, 50, 61, 74, 77, 78, 86, 89, 93, 104, 111, 117, 123, 128, 136, 139, 140, 158, 168, 170, 171, 176, 193, 200, 211, 216, 238, 240, 251, 262, 270, 280, 289, 299, 420, 435, 445, 458, 460, 499],
+    "CLEVER FANFA SARMENTO JUNIOR": [6, 8, 18, 21, 23, 32, 37, 43, 50, 61, 74, 77, 78, 82, 86, 89, 93, 104, 111, 117, 123, 128, 136, 139, 140, 158, 168, 170, 171, 176, 193, 200, 210, 211, 216, 238, 239, 240, 251, 262, 270, 280, 289, 299, 420, 435, 445, 458, 460, 499],
     "ELIANA CATARINA BALOK CHAGAS": [31, 45, 96],
     "GABRIEL GODOI TEIXEIRA": [4, 5, 22, 25, 26, 29, 33, 36, 39, 42, 52, 55, 62, 63, 70, 94, 99, 101, 102, 110, 115, 122, 130, 159, 160, 162, 163, 173, 182, 185, 186, 188, 189, 190, 191, 192, 199, 201, 202, 208, 224, 229, 230, 231, 233, 242, 256, 279, 293, 296, 409, 411, 426, 433, 438, 441, 442, 443, 461],
     "HELLEN SCHIMIDT DIAS": [7, 97, 294],
@@ -324,10 +323,10 @@ EQUIPE_LOGINS = {
 # Amanda, divididos por regiao (ESPECIALISTA_ZONAS logo abaixo).
 CODIGOS_ESPECIALISTA = {"106008", "206006"}
 
-# 112001 Devolucao de Valores - Ligacao: so da Daiane, no estado todo.
+# 112001 Devolucao de Valores - Ligacao: so do Clever, no estado todo.
 CODIGOS_EXCLUSIVOS = {
-    "112001": "DAIANE BARROS DE OLIVEIRA",
-    "206004": "DAIANE BARROS DE OLIVEIRA",
+    "112001": "CLEVER FANFA SARMENTO JUNIOR",
+    "206004": "CLEVER FANFA SARMENTO JUNIOR",
     "306006": "ALEXANDRE PEDROSO LOPES",
 }
 
@@ -337,7 +336,7 @@ FORA_DA_REDISTRIBUICAO = {
     "PEDRO ARTHUR ALVES DE FREITAS",
     "AMANDA BARCELLOS",
     "ALEXANDRE PEDROSO LOPES",
-    "DAIANE BARROS DE OLIVEIRA",
+    "CLEVER FANFA SARMENTO JUNIOR",
 }
 
 ESPECIALISTA_ZONAS = {
@@ -632,7 +631,7 @@ def distribute_os(df):
         mask = df_normal["Zona Ligacao"].isin(zonas)
         distribution[colab] = pd.concat([distribution[colab], df_normal[mask]])
 
-    # Dono unico por tipo, no estado todo (ex.: devolucao de valores -> Daiane)
+    # Dono unico por tipo, no estado todo (ex.: devolucao de valores -> Clever)
     for cod, dono in CODIGOS_EXCLUSIVOS.items():
         recorte = df[codigos == cod]
         if recorte.empty:
