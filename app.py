@@ -1832,9 +1832,28 @@ if st.session_state.is_admin:
             st.info("Sem dados de encerradas. Carregue o relatório com OS em aberto "
                     "e encerradas para ver este gráfico.")
         else:
-            df_e = df_enc
+            df_e = df_enc.copy()
             if selected_tipos and "Tipo de Solicitação" in df_e.columns:
                 df_e = df_e[df_e["Tipo de Solicitação"].isin(selected_tipos)]
+
+            # Filtro por data de encerramento (pre-selecionado: hoje)
+            col_data_enc = next(
+                (c for c in df_e.columns
+                 if "data" in norm_cidade(c) and "encerr" in norm_cidade(c)),
+                None,
+            )
+            if col_data_enc is not None:
+                df_e = df_e.assign(
+                    _data_enc=pd.to_datetime(df_e[col_data_enc], errors="coerce"))
+                dia_sel = st.date_input(
+                    "Data de encerramento",
+                    value=datetime.now(BR_TZ).date(),
+                    format="DD/MM/YYYY",
+                    key="enc_data_sel",
+                )
+                df_e = df_e[df_e["_data_enc"].dt.date == dia_sel]
+            else:
+                st.caption("Relatório sem coluna 'Data Encerramento'; exibindo todas as encerradas.")
 
             if df_e.empty:
                 st.info("Nenhuma OS encerrada para os filtros selecionados.")
@@ -1862,6 +1881,58 @@ if st.session_state.is_admin:
                 )
                 st.plotly_chart(fig_enc, use_container_width=True,
                                 config={"displayModeBar": False}, key="adm_encerradas")
+
+                # Pizza: indeferidas / executadas / suspensas
+                col_sit = next(
+                    (c for c in df_e.columns if "situa" in norm_cidade(c)), None)
+                if col_sit is not None:
+                    sit = df_e[col_sit].astype(str).str.lower()
+                    buckets = {
+                        "Executadas": int(sit.str.contains("execut", na=False).sum()),
+                        "Indeferidas": int(sit.str.contains("indefer", na=False).sum()),
+                        "Suspensas": int(sit.str.contains("suspens", na=False).sum()),
+                    }
+                    if sum(buckets.values()) > 0:
+                        st.markdown(
+                            '<div class="section-title" style="margin-top:18px">'
+                            'Situação das Encerradas</div>',
+                            unsafe_allow_html=True,
+                        )
+                        cores = {"Executadas": "#00D4AA",
+                                 "Indeferidas": "#FF6B6B",
+                                 "Suspensas": "#FFB020"}
+                        labels = list(buckets.keys())
+                        valores = [buckets[l] for l in labels]
+                        fig_pie = go.Figure(go.Pie(
+                            labels=labels,
+                            values=valores,
+                            hole=0.45,
+                            sort=False,
+                            marker=dict(colors=[cores[l] for l in labels],
+                                        line=dict(color="#0A1628", width=2)),
+                            textinfo="label+value",
+                            textfont=dict(color="white", size=13),
+                            hovertemplate="%{label}: %{value} (%{percent})<extra></extra>",
+                        ))
+                        fig_pie.update_layout(
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color="rgba(255,255,255,0.8)", size=13),
+                            margin=dict(l=0, r=0, t=10, b=10),
+                            height=360,
+                            legend=dict(orientation="h", yanchor="bottom", y=-0.08,
+                                        xanchor="center", x=0.5),
+                            showlegend=True,
+                        )
+                        st.plotly_chart(fig_pie, use_container_width=True,
+                                        config={"displayModeBar": False},
+                                        key="adm_enc_pizza")
+                    else:
+                        st.caption("Sem registros de indeferidas, executadas ou "
+                                   "suspensas para esta data.")
+                else:
+                    st.caption("Relatório sem coluna de situação; não é possível "
+                               "montar o gráfico de pizza.")
 
     # -----------------------------------------------------------------------
     # Tab: Cobertura de Ausencias
