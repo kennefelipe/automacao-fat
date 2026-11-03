@@ -811,27 +811,45 @@ COL_USUARIO_ENC = "usuario encerramento"
 _VAZIOS = {"", "nan", "none", "null", "nat", "-"}
 
 
+def _col_data_encerramento(df_raw):
+    """Acha a coluna de Data Encerramento (nunca Data Pedido)."""
+    c = next((c for c in df_raw.columns
+              if norm_cidade(c) == "data encerramento"), None)
+    if c is None:
+        c = next((c for c in df_raw.columns
+                  if "data" in norm_cidade(c) and "encerr" in norm_cidade(c)
+                  and "pedido" not in norm_cidade(c)), None)
+    return c
+
+
 def separar_abertas_encerradas(df_raw):
     """Separa o relatorio em (abertas, encerradas, coluna_usuario).
 
-    Sem preenchimento em 'Usuario Encerramento' = em aberto.
-    Com nome = encerrada (o nome e de quem encerrou).
-    Se o relatorio nao tiver a coluna, tudo e tratado como em aberto.
+    Regra: tem Data Encerramento preenchida => encerrada; senao => em aberto.
+    A coluna de usuario (Usuario Encerramento) e retornada so para agrupar as
+    encerradas por quem encerrou no painel admin. Se o relatorio nao trouxer a
+    Data Encerramento, cai no antigo criterio (Usuario Encerramento preenchido).
     """
-    col = next((c for c in df_raw.columns
-                if norm_cidade(c) == COL_USUARIO_ENC), None)
-    if col is None:
+    col_usuario = next((c for c in df_raw.columns
+                        if norm_cidade(c) == COL_USUARIO_ENC), None)
+    col_data = _col_data_encerramento(df_raw)
+
+    if col_data is not None:
+        encerrada = pd.to_datetime(df_raw[col_data], errors="coerce").notna()
+    elif col_usuario is not None:
+        usuario = df_raw[col_usuario].astype(str).str.strip()
+        encerrada = ~(df_raw[col_usuario].isna()
+                      | usuario.str.lower().isin(_VAZIOS))
+    else:
         return df_raw, pd.DataFrame(columns=df_raw.columns), None
 
-    usuario = df_raw[col].astype(str).str.strip()
-    vazio = df_raw[col].isna() | usuario.str.lower().isin(_VAZIOS)
-
-    abertas = df_raw[vazio].copy()
-    encerradas = df_raw[~vazio].copy()
-    encerradas[col] = usuario[~vazio]
+    abertas = df_raw[~encerrada].copy()
+    encerradas = df_raw[encerrada].copy()
+    if col_usuario is not None:
+        encerradas[col_usuario] = encerradas[col_usuario].astype(str).str.strip()
     if "Nº da Solicitação" in encerradas.columns:
         encerradas = encerradas.drop_duplicates(subset=["Nº da Solicitação"])
-    return abertas, encerradas, col
+    return abertas, encerradas, col_usuario
 
 
 @st.cache_data
@@ -1874,46 +1892,9 @@ if st.session_state.is_admin:
             # (de outras equipes) sao desconsiderados.
             df_e = df_e[df_e[col_enc].map(norm_login).isin(LOGINS_EQUIPE)]
 
-            # O encerramento final vem da coluna "Ocorrencia Encerramento".
-            # So contam 0-EXECUTADO (executadas), SUSPENSO (suspensas) e
-            # INDEFERIDO (indeferidas); as demais ocorrencias sao tentativas
-            # e nao entram na contagem.
-            col_ocor = next(
-                (c for c in df_e.columns
-                 if "ocorrencia" in norm_cidade(c) and "encerr" in norm_cidade(c)),
-                None,
-            )
-
-            def _situacao_final(valor):
-                t = norm_cidade(valor)
-                if "executad" in t:
-                    return "Executadas"
-                if "suspens" in t:
-                    return "Suspensas"
-                if "indefer" in t:
-                    return "Indeferidas"
-                return None
-
-            if col_ocor is not None:
-                df_e = df_e.assign(_situacao=df_e[col_ocor].map(_situacao_final))
-                df_e = df_e[df_e["_situacao"].notna()]
-            else:
-                st.caption("Relatório sem coluna 'Ocorrência Encerramento'; "
-                           "contabilizando todas as encerradas.")
-
-            # Filtro por data de encerramento (pre-selecionado: hoje).
-            # Usa SOMENTE a coluna de Data Encerramento, nunca Data Pedido.
-            col_data_enc = next(
-                (c for c in df_e.columns if norm_cidade(c) == "data encerramento"),
-                None,
-            )
-            if col_data_enc is None:
-                col_data_enc = next(
-                    (c for c in df_e.columns
-                     if "data" in norm_cidade(c) and "encerr" in norm_cidade(c)
-                     and "pedido" not in norm_cidade(c)),
-                    None,
-                )
+            # Conta por Data Encerramento (pre-selecionado: hoje), nunca Data
+            # Pedido. Regra: tem Data Encerramento no dia selecionado = encerrada.
+            col_data_enc = _col_data_encerramento(df_e)
             if col_data_enc is not None:
                 df_e = df_e.assign(
                     _data_enc=pd.to_datetime(df_e[col_data_enc], errors="coerce"))
@@ -1953,53 +1934,6 @@ if st.session_state.is_admin:
                 )
                 st.plotly_chart(fig_enc, use_container_width=True,
                                 config={"displayModeBar": False}, key="adm_encerradas")
-
-                # Pizza: executadas / indeferidas / suspensas (Ocorrencia Encerramento)
-                if col_ocor is not None:
-                    cont = df_e["_situacao"].value_counts()
-                    buckets = {
-                        "Executadas": int(cont.get("Executadas", 0)),
-                        "Indeferidas": int(cont.get("Indeferidas", 0)),
-                        "Suspensas": int(cont.get("Suspensas", 0)),
-                    }
-                    if sum(buckets.values()) > 0:
-                        st.markdown(
-                            '<div class="section-title" style="margin-top:18px">'
-                            'Situação das Encerradas</div>',
-                            unsafe_allow_html=True,
-                        )
-                        cores = {"Executadas": "#00D4AA",
-                                 "Indeferidas": "#FF6B6B",
-                                 "Suspensas": "#FFB020"}
-                        labels = list(buckets.keys())
-                        valores = [buckets[l] for l in labels]
-                        fig_pie = go.Figure(go.Pie(
-                            labels=labels,
-                            values=valores,
-                            hole=0.45,
-                            sort=False,
-                            marker=dict(colors=[cores[l] for l in labels],
-                                        line=dict(color="#0A1628", width=2)),
-                            textinfo="label+value",
-                            textfont=dict(color="white", size=13),
-                            hovertemplate="%{label}: %{value} (%{percent})<extra></extra>",
-                        ))
-                        fig_pie.update_layout(
-                            plot_bgcolor="rgba(0,0,0,0)",
-                            paper_bgcolor="rgba(0,0,0,0)",
-                            font=dict(color="rgba(255,255,255,0.8)", size=13),
-                            margin=dict(l=0, r=0, t=10, b=10),
-                            height=360,
-                            legend=dict(orientation="h", yanchor="bottom", y=-0.08,
-                                        xanchor="center", x=0.5),
-                            showlegend=True,
-                        )
-                        st.plotly_chart(fig_pie, use_container_width=True,
-                                        config={"displayModeBar": False},
-                                        key="adm_enc_pizza")
-                    else:
-                        st.caption("Sem registros de executadas, indeferidas ou "
-                                   "suspensas para esta data.")
 
     # -----------------------------------------------------------------------
     # Tab: Cobertura de Ausencias
