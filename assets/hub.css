@@ -31,13 +31,10 @@
 }
 
 /* ---------- Base ---------- */
+/* Fundo: mar visto de baixo (static/mar_d_superficie_ampla.png, servido em
+   app/static/ por enableStaticServing). A cor navy aparece enquanto carrega. */
 .stApp {
-    background:
-        radial-gradient(1100px 620px at 8% -12%, rgba(0, 212, 170, 0.10), transparent 60%),
-        radial-gradient(900px 640px at 105% -5%, rgba(60, 120, 255, 0.12), transparent 60%),
-        radial-gradient(1000px 700px at 50% 115%, rgba(0, 200, 150, 0.06), transparent 60%),
-        linear-gradient(160deg, var(--hub-bg) 0%, var(--hub-bg-2) 55%, var(--hub-bg) 100%);
-    background-attachment: fixed;
+    background: var(--hub-bg) url("app/static/mar_d_superficie_ampla.png") center / cover no-repeat fixed;
     font-family: var(--hub-font);
 }
 .stApp p, .stApp span, .stApp div, .stApp label,
@@ -102,12 +99,11 @@ header[data-testid="stHeader"] { background: transparent; }
 }
 
 /* ---------- Sidebar ---------- */
+/* Sidebar translucida: o mar aparece de leve por tras, textos seguem legiveis */
 section[data-testid="stSidebar"] {
-    background:
-        radial-gradient(500px 300px at 0% 0%, rgba(0, 212, 170, 0.08), transparent 70%),
-        linear-gradient(180deg, rgba(13, 27, 46, 0.96) 0%, rgba(18, 40, 74, 0.96) 100%);
-    border-right: 1px solid var(--hub-line);
-    backdrop-filter: blur(18px);
+    background: linear-gradient(180deg, rgba(3, 15, 30, 0.36), rgba(3, 15, 30, 0.30));
+    backdrop-filter: blur(3px);
+    border-right: 1px solid rgba(255, 255, 255, 0.09);
 }
 section[data-testid="stSidebar"] hr {
     border: none;

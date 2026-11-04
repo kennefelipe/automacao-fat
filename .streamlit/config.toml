@@ -7,3 +7,5 @@ font = "sans serif"
 
 [server]
 maxUploadSize = 200
+# Serve a pasta static/ em app/static/ (fundo do HUB no CSS)
+enableStaticServing = true
