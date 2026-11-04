@@ -76,6 +76,25 @@ header[data-testid="stHeader"] { background: transparent; }
 @keyframes hubGrow {
     from { width: 0; }
 }
+@keyframes hubDraw {
+    from { stroke-dashoffset: 6000; }
+    to   { stroke-dashoffset: 0; }
+}
+@keyframes hubFade {
+    from { opacity: 0; }
+}
+/* Linha do Acompanhamento pelo Tramite: desenha o percurso ao carregar */
+.st-key-hub-panel-tramite .scatterlayer .js-line {
+    stroke-dasharray: 6000;
+    animation: hubDraw 1.6s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+.st-key-hub-panel-tramite .scatterlayer .js-fill {
+    animation: hubFade 1.1s ease 0.35s both;
+}
+.st-key-hub-panel-tramite .scatterlayer .points,
+.st-key-hub-panel-tramite .scatterlayer .textpoint {
+    animation: hubFade 0.6s ease 0.9s both;
+}
 @keyframes hubPulse {
     0%   { box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.55); }
     70%  { box-shadow: 0 0 0 7px rgba(0, 212, 170, 0); }
@@ -308,11 +327,14 @@ section[data-testid="stSidebar"] hr {
     min-height: 118px;
     padding: 16px 18px 15px;
     border-radius: 20px;
+    /* Cor forte o bastante para manter a identidade de cada card
+       mesmo sobre um fundo fotografico; base escura evita "lavar". */
     background:
-        radial-gradient(140% 120% at 0% 0%, rgba(var(--accent), 0.30) 0%, rgba(var(--accent), 0.10) 42%, rgba(255, 255, 255, 0.03) 100%);
-    border: 1px solid rgba(var(--accent), 0.32);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 36px -24px rgba(var(--accent), 0.75);
-    backdrop-filter: blur(14px);
+        linear-gradient(150deg, rgba(var(--accent), 0.62) 0%, rgba(var(--accent), 0.34) 48%, rgba(var(--accent), 0.16) 100%),
+        rgba(10, 22, 40, 0.55);
+    border: 1px solid rgba(var(--accent), 0.60);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 18px 36px -22px rgba(var(--accent), 0.85);
+    backdrop-filter: blur(14px) saturate(140%);
     color: var(--hub-text);
     display: flex;
     flex-direction: column;
@@ -348,9 +370,9 @@ section[data-testid="stSidebar"] hr {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(var(--accent), 0.18);
-    border: 1px solid rgba(var(--accent), 0.40);
-    color: rgb(var(--accent));
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    color: #FFFFFF;
 }
 .hub-kpi__value {
     margin-top: 40px;
@@ -364,19 +386,36 @@ section[data-testid="stSidebar"] hr {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.hub-kpi__value .hub-kpi__city { font-size: 15px; font-weight: 700; letter-spacing: 0; }
-.hub-kpi__value .hub-kpi__count { font-size: 18px; font-weight: 800; color: rgb(var(--accent)); }
+.hub-kpi__value .hub-kpi__city { font-size: 19px; font-weight: 800; letter-spacing: -0.2px; }
 .hub-kpi__label {
     margin-top: 6px;
     font-size: 12px;
-    color: var(--hub-muted);
+    color: rgba(255, 255, 255, 0.86);
     line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .hub-kpi--teal   { --accent: 0, 212, 170; }
-.hub-kpi--ice    { --accent: 232, 237, 245; }
-.hub-kpi--slate  { --accent: 110, 150, 210; }
+.hub-kpi--slate  { --accent: 70, 120, 200; }
 .hub-kpi--orange { --accent: 255, 154, 46; }
-.hub-kpi--red    { --accent: 255, 107, 107; }
+.hub-kpi--red    { --accent: 255, 77, 77; }
+
+/* Card claro (cidade): identidade original, fundo gelo com texto escuro */
+.hub-kpi--ice {
+    --accent: 232, 237, 245;
+    background: linear-gradient(150deg, rgba(255, 255, 255, 0.94) 0%, rgba(232, 237, 245, 0.82) 100%);
+    border-color: rgba(255, 255, 255, 0.85);
+    box-shadow: inset 0 1px 0 #FFFFFF, 0 18px 36px -22px rgba(0, 0, 0, 0.6);
+}
+.hub-kpi--ice .hub-kpi__value { color: #0A1628; }
+.hub-kpi--ice .hub-kpi__label { color: rgba(10, 22, 40, 0.68); }
+.hub-kpi--ice .hub-kpi__icon {
+    background: rgba(0, 150, 106, 0.14);
+    border-color: rgba(0, 150, 106, 0.35);
+    color: #00966A;
+}
+.hub-kpi--ice::after { opacity: 0; }
 
 [data-testid="stColumn"]:nth-child(1) .hub-kpi { animation-delay: 0.00s; }
 [data-testid="stColumn"]:nth-child(2) .hub-kpi { animation-delay: 0.06s; }

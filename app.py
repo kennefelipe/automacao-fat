@@ -536,7 +536,7 @@ def render_metric_card(icon, value, label, accent):
     return (f'<div class="hub-kpi hub-kpi--{accent}">'
             f'<div class="hub-kpi__icon">{svg_icon(icon)}</div>'
             f'<div class="hub-kpi__value">{value}</div>'
-            f'<div class="hub-kpi__label">{label}</div></div>')
+            f'<div class="hub-kpi__label" title="{_esc(label)}">{_esc(label)}</div></div>')
 
 
 def panel_header(titulo, icon, chip=None, variante=None, chip_accent=False):
@@ -1254,12 +1254,13 @@ if show_cards:
     with col2:
         if cidade_atrasada != "-":
             cidade_html = (f'<span class="hub-kpi__city" title="{_esc(cidade_atrasada)}">'
-                           f'{_esc(cidade_atrasada)}</span> '
-                           f'<span class="hub-kpi__count">({qtd_cidade_atrasada})</span>')
+                           f'{_esc(cidade_atrasada)}</span>')
+            cidade_label = f"Cidade mais atrasada ({qtd_cidade_atrasada} OS's)"
         else:
             cidade_html = "-"
+            cidade_label = "Cidade mais atrasada"
         st.markdown(render_metric_card(
-            "pin", cidade_html, "Cidade mais atrasada", "ice"
+            "pin", cidade_html, cidade_label, "ice"
         ), unsafe_allow_html=True)
     with col3:
         st.markdown(render_metric_card(
@@ -1308,35 +1309,79 @@ with tab_acomp:
         ), unsafe_allow_html=True)
 
         if not os_dia_df.empty:
-            fig_os_dia = go.Figure(
-                go.Bar(
-                    x=os_dia_df["Data_fmt"],
-                    y=os_dia_df["Quantidade"],
-                    marker=dict(color="#00D4AA", cornerradius=4),
-                    text=os_dia_df["Quantidade"],
-                    textposition="outside",
-                    cliponaxis=False,
-                    textfont=dict(color="rgba(255,255,255,0.88)", size=12),
-                    hovertemplate="<b>%{x}</b><br>%{y} OS em aberto<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>",
-                    selected=dict(marker=dict(opacity=1)),
-                    unselected=dict(marker=dict(opacity=0.3)),
-                )
+            dias = os_dia_df["Data_fmt"]
+            qtd = os_dia_df["Quantidade"]
+            topo = float(qtd.max()) * 1.25
+
+            chart_key = f"chart_tramite_{selected_colab}"
+            piso = -topo * 0.06  # folga: a curva suavizada nao some abaixo do zero
+
+            fig_os_dia = go.Figure()
+            # Coluna invisivel por dia: clicar em qualquer altura dela seleciona o
+            # dia (alvo bem maior que o ponto da linha).
+            # A figura nao pode depender da selecao: se mudar a cada rerun, o
+            # Streamlit zera a selecao e o filtro por dia deixa de funcionar.
+            fig_os_dia.add_trace(go.Bar(
+                x=dias,
+                y=[topo * 0.96 - piso] * len(dias),
+                base=piso,
+                marker=dict(color="#00D4AA", opacity=0),
+                hoverinfo="none",
+                showlegend=False,
+            ))
+
+            linha = dict(
+                x=dias,
+                y=qtd,
+                mode="lines+markers+text",
+                line=dict(color="#00D4AA", width=2.5, shape="spline", smoothing=0.6),
+                marker=dict(size=9, color="#00D4AA", line=dict(color="#0A1628", width=2)),
+                text=qtd,
+                textposition="top center",
+                cliponaxis=False,
+                textfont=dict(color="rgba(255,255,255,0.92)", size=12),
+                fill="tozeroy",
+                hovertemplate="<b>%{x}</b><br>%{y} OS em aberto<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>",
+                selected=dict(marker=dict(size=15, color="#FFFFFF")),
+                unselected=dict(marker=dict(opacity=1), textfont=dict(color="rgba(255,255,255,0.92)")),
+                showlegend=False,
             )
+            try:
+                fig_os_dia.add_trace(go.Scatter(**linha, fillgradient=dict(
+                    type="vertical",
+                    colorscale=[[0, "rgba(0,212,170,0)"], [1, "rgba(0,212,170,0.32)"]],
+                )))
+            except ValueError:  # Plotly antigo sem fillgradient
+                fig_os_dia.add_trace(go.Scatter(**linha, fillcolor="rgba(0,212,170,0.14)"))
+
             estilo_grafico(
                 fig_os_dia,
-                margin=dict(l=0, r=0, t=24, b=0),
-                height=300,
+                margin=dict(l=0, r=0, t=16, b=0),
+                height=320,
+                hovermode="x",
+                bargap=0.18,
                 xaxis=dict(
                     color="rgba(255,255,255,0.55)",
                     tickfont=dict(size=12),
                     showgrid=False,
                     showline=False,
+                    showspikes=True,
+                    spikemode="across",
+                    spikesnap="data",
+                    spikethickness=1,
+                    spikedash="dot",
+                    spikecolor="rgba(0,212,170,0.55)",
                 ),
-                yaxis=dict(visible=False, showgrid=False),
-                bargap=0.42,
+                yaxis=dict(
+                    range=[piso, topo],
+                    showticklabels=False,
+                    showgrid=True,
+                    gridcolor="rgba(255,255,255,0.06)",
+                    griddash="dot",
+                    zeroline=False,
+                ),
             )
 
-            chart_key = f"chart_tramite_{selected_colab}"
             event = st.plotly_chart(
                 fig_os_dia,
                 use_container_width=True,
@@ -1361,7 +1406,7 @@ with tab_acomp:
         st.markdown(
             '<span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
             f'Filtrado por: {dia_label}'
-            '<span class="hub-chip__hint">&nbsp;· clique de novo na barra para limpar</span></span>',
+            '<span class="hub-chip__hint">&nbsp;· clique de novo no dia para limpar</span></span>',
             unsafe_allow_html=True,
         )
     else:
