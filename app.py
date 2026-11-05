@@ -343,19 +343,17 @@ STATUS_AGUARDANDO_RETORNO = "Aguardando Retorno"
 def aplicar_status(df):
     """Cria a coluna Status.
 
-    Regra especial, SO para Devolucao de Valores - Ligacao (codigo 112001):
-    se o Parecer Tecnico contiver o marcador #00, o status fica
-    'Aguardando Retorno'. Os demais tipos de solicitacao ficam sem status.
+    Vale para todos os tipos de solicitacao e todos os colaboradores: se o
+    Parecer Tecnico contiver o marcador #00, o status fica 'Aguardando
+    Retorno'. Sem o marcador, a OS fica sem status.
     """
     df = df.copy()
     df["Status"] = ""
     if "Parecer Técnico" not in df.columns:
         return df
-    codigos, _ = serie_codigos(df)
-    eh_devolucao = codigos == "112001"
     # #00 nao seguido de outro digito, para nao casar com #001, #002, etc.
     tem_marcador = df["Parecer Técnico"].astype(str).str.contains(r"#00(?!\d)", regex=True, na=False)
-    df.loc[eh_devolucao & tem_marcador, "Status"] = STATUS_AGUARDANDO_RETORNO
+    df.loc[tem_marcador, "Status"] = STATUS_AGUARDANDO_RETORNO
     return df
 
 
