@@ -84,10 +84,11 @@ EQUIPE_LOGINS = {
 }
 
 # Tipos de servico com dono exclusivo, independentemente da zona da OS.
-# 112001 Devolucao de Valores - Ligacao: so do Clever, no estado todo.
+# 112001 Devolucao de Valores - Ligacao e 206004 Cancelamento Fatura - Chamados
+# Service Now: so da Eliana, no estado todo.
 CODIGOS_EXCLUSIVOS = {
-    "112001": "CLEVER FANFA SARMENTO JUNIOR",
-    "206004": "CLEVER FANFA SARMENTO JUNIOR",
+    "112001": "ELIANA CATARINA BALOK CHAGAS",
+    "206004": "ELIANA CATARINA BALOK CHAGAS",
     "306006": "ALEXANDRE PEDROSO LOPES",
 }
 
@@ -95,7 +96,7 @@ CODIGOS_EXCLUSIVOS = {
 # entra no rateio quando a ausencia de alguem e redistribuida para todos.
 FORA_DA_REDISTRIBUICAO = {
     "ALEXANDRE PEDROSO LOPES",
-    "CLEVER FANFA SARMENTO JUNIOR",
+    "ELIANA CATARINA BALOK CHAGAS",
 }
 
 # ---------------------------------------------------------------------------
@@ -378,7 +379,7 @@ def distribute_os(df):
         mask = df_normal["Zona Ligacao"].isin(zonas)
         distribution[colab] = pd.concat([distribution[colab], df_normal[mask]])
 
-    # Dono unico por tipo, no estado todo (ex.: devolucao de valores -> Clever)
+    # Dono unico por tipo, no estado todo (ex.: devolucao de valores -> Eliana)
     for cod, dono in CODIGOS_EXCLUSIVOS.items():
         recorte = df[codigos == cod]
         if recorte.empty:
