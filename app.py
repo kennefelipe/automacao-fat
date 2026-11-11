@@ -115,6 +115,15 @@ TIPOS_BACKLOG = [
     "Transferência de Débitos para outra Ligação",
 ]
 
+# Tipos que so aparecem no HOP depois de executados em campo: sem
+# "Ocorrência Encerramento" preenchida a OS ainda nao pode ser encerrada,
+# entao fica oculta. Comparacao pelo nome, igual ao BACKLOG.
+TIPOS_EXIGEM_OCORRENCIA = [
+    "Repasse de Leitura - Grandes Clientes",
+    "Verificação de Consumo - Faturamento",
+    "Vistoria de Imóvel - Verificação Consumo",
+]
+
 # ---------------------------------------------------------------------------
 # MAPEAMENTO ZONA -> CIDADE
 # ---------------------------------------------------------------------------
@@ -685,6 +694,28 @@ def separar_abertas_encerradas(df_raw):
     return abertas, encerradas, col_usuario
 
 
+_EXIGEM_OCORRENCIA_NORM = {norm_tipo(t) for t in TIPOS_EXIGEM_OCORRENCIA}
+
+
+def ocultar_sem_ocorrencia(df):
+    """Tira das abertas as OS de TIPOS_EXIGEM_OCORRENCIA ainda nao executadas.
+
+    Retorna (df filtrado, qtd ocultada, coluna_encontrada). Se a extracao nao
+    trouxer a coluna Ocorrência Encerramento, nada e ocultado.
+    """
+    col = next((c for c in df.columns
+                if norm_tipo(c) == "ocorrencia encerramento"), None)
+    if col is None:
+        return df, 0, False
+    if "Tipo de Solicitação" not in df.columns:
+        return df, 0, True
+    exige = df["Tipo de Solicitação"].map(norm_tipo).isin(_EXIGEM_OCORRENCIA_NORM)
+    texto = df[col].astype(str).str.strip().str.lower()
+    vazia = df[col].isna() | texto.isin(_VAZIOS).fillna(False).astype(bool)
+    ocultar = exige & vazia
+    return df[~ocultar].copy(), int(ocultar.sum()), True
+
+
 @st.cache_data
 def load_geojson():
     """Contornos dos 497 municipios do RS (IBGE). Retorna (geojson, key->codigo, codigo->nome)."""
@@ -1134,6 +1165,8 @@ with st.sidebar:
             # So as abertas seguem para o sistema; as encerradas ficam
             # separadas e so o painel admin usa.
             df, df_enc, col_enc = separar_abertas_encerradas(df_raw)
+            # Repasse/Verificacao/Vistoria so entram depois de executadas em campo
+            df, qtd_sem_ocorrencia, tem_col_ocorrencia = ocultar_sem_ocorrencia(df)
             df["Data Tramite"] = pd.to_datetime(df["Data Tramite"], errors="coerce")
             df["Data Pedido"] = pd.to_datetime(df["Data Pedido"], errors="coerce")
             df = aplicar_status(df)
@@ -1142,9 +1175,15 @@ with st.sidebar:
             st.session_state.df_encerradas = df_enc
             st.session_state.col_encerramento = col_enc
             msg = f"{len(df)} registros em aberto"
+            if qtd_sem_ocorrencia:
+                msg += f" · {qtd_sem_ocorrencia} aguardando execução em campo (ocultas)"
             if len(df_enc):
                 msg += f" · {len(df_enc)} encerradas"
             st.success(msg)
+            if not tem_col_ocorrencia:
+                st.warning("A coluna 'Ocorrência Encerramento' não foi exportada na extração: "
+                           "as OS de " + ", ".join(TIPOS_EXIGEM_OCORRENCIA)
+                           + " aparecem mesmo sem execução em campo.")
             if primeira_carga:
                 st.rerun()
         except Exception as e:
