@@ -99,6 +99,22 @@ FORA_DA_REDISTRIBUICAO = {
     "ELIANA CATARINA BALOK CHAGAS",
 }
 
+# Opcao "BACKLOG" do filtro Tipo de Servico: agrupa os tipos que caem no
+# backlog do Faturamento. A comparacao e pelo nome, ignorando acento,
+# caixa, pontuacao e espacos. Para incluir/remover um tipo, edite a lista.
+OPCAO_BACKLOG = "BACKLOG"
+TIPOS_BACKLOG = [
+    "Cancelamento Fatura - Cobrança Indevida",
+    "Cancelamento Fatura - Chamados Service Now",
+    "Retificação de Fatura",
+    "Retificação de Fatura - Erro de Leitura",
+    "Retificação de Fatura - Vazamento",
+    "Retificação de Fatura - Disp Esgoto",
+    "Retificação de Fatura - Aferição HD",
+    "Retificação de Fatura - Grandes Clientes",
+    "Transferência de Débitos para outra Ligação",
+]
+
 # ---------------------------------------------------------------------------
 # MAPEAMENTO ZONA -> CIDADE
 # ---------------------------------------------------------------------------
@@ -598,6 +614,32 @@ def norm_login(valor) -> str:
 LOGINS_EQUIPE = {norm_login(v) for v in EQUIPE_LOGINS.values()}
 
 
+def norm_tipo(tipo) -> str:
+    """Normaliza o nome do tipo de servico: sem acento, caixa, pontuacao e espacos extras."""
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", norm_cidade(tipo)).split())
+
+
+_BACKLOG_NORM = {norm_tipo(t) for t in TIPOS_BACKLOG}
+
+
+def eh_backlog(tipo) -> bool:
+    """True se o tipo de servico faz parte do backlog do Faturamento."""
+    return norm_tipo(tipo) in _BACKLOG_NORM
+
+
+def mascara_tipos(serie, selecionados):
+    """Linhas cujo tipo esta entre os selecionados.
+
+    A opcao BACKLOG vale por todos os tipos de TIPOS_BACKLOG; os demais tipos
+    escolhidos se somam a ela.
+    """
+    avulsos = [t for t in selecionados if t != OPCAO_BACKLOG]
+    mask = serie.isin(avulsos)
+    if OPCAO_BACKLOG in selecionados:
+        mask = mask | serie.map(eh_backlog).astype(bool)
+    return mask
+
+
 COL_USUARIO_ENC = "usuario encerramento"
 _VAZIOS = {"", "nan", "none", "null", "nat", "-"}
 
@@ -1062,9 +1104,18 @@ with st.sidebar:
         # Filtro por tipo de servico (multiplos; lista vazia = todos)
     if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
         tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
+        # BACKLOG fica sempre no topo. Com ele marcado, os tipos do backlog
+        # somem da lista (ja estao incluidos) e saem da selecao, se estavam.
+        # Ajuste feito ANTES de instanciar o multiselect (regra do Streamlit).
+        escolha_atual = st.session_state.get("tipo_multiselect", [])
+        if OPCAO_BACKLOG in escolha_atual:
+            tipos_disponiveis = [t for t in tipos_disponiveis if not eh_backlog(t)]
+            sem_repetidos = [t for t in escolha_atual if t == OPCAO_BACKLOG or not eh_backlog(t)]
+            if sem_repetidos != escolha_atual:
+                st.session_state["tipo_multiselect"] = sem_repetidos
         st.markdown('<p class="hub-label">Tipo de Serviço</p>', unsafe_allow_html=True)
         selected_tipos = st.multiselect(
-            "Tipo de Serviço", tipos_disponiveis, key="tipo_multiselect",
+            "Tipo de Serviço", [OPCAO_BACKLOG] + tipos_disponiveis, key="tipo_multiselect",
             placeholder="Todos", label_visibility="collapsed",
         )
     else:
@@ -1150,9 +1201,9 @@ else:
     df_colab = pd.DataFrame()
     df_view = df
 
-# Aplicar filtro por tipo de servico (um ou mais tipos)
+# Aplicar filtro por tipo de servico (um ou mais tipos; BACKLOG = tipos do backlog)
 if selected_tipos:
-    df_view = df_view[df_view["Tipo de Solicitação"].isin(selected_tipos)]
+    df_view = df_view[mascara_tipos(df_view["Tipo de Solicitação"], selected_tipos)]
 
 total_os = len(df_view)
 os_por_dia = df_view.groupby(df_view["Data Tramite"].dt.date).size()
@@ -1464,7 +1515,7 @@ with tab_acomp:
 # ---------------------------------------------------------------------------
 df_mapa = df
 if selected_tipos:
-    df_mapa = df_mapa[df_mapa["Tipo de Solicitação"].isin(selected_tipos)]
+    df_mapa = df_mapa[mascara_tipos(df_mapa["Tipo de Solicitação"], selected_tipos)]
 if selected_dia is not None:
     df_mapa = df_mapa[df_mapa["Data Tramite"].dt.date == selected_dia]
 
@@ -1690,7 +1741,7 @@ if st.session_state.is_admin:
         else:
             df_e = df_enc.copy()
             if selected_tipos and "Tipo de Solicitação" in df_e.columns:
-                df_e = df_e[df_e["Tipo de Solicitação"].isin(selected_tipos)]
+                df_e = df_e[mascara_tipos(df_e["Tipo de Solicitação"], selected_tipos)]
 
             # Considera apenas quem esta na distribuicao; usuarios divergentes
             # (de outras equipes) sao desconsiderados.
