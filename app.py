@@ -1492,7 +1492,6 @@ if df is None:
         arquivo_inicio = st.file_uploader("Carregar extração", type=["xlsx", "xls"],
                                           key="file_upload_inicio", label_visibility="collapsed")
         if arquivo_inicio is not None:
-            mostrar_tela_carregando()
             carregar_extracao(arquivo_inicio)
     st.stop()
 
