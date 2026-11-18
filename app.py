@@ -367,6 +367,13 @@ def _nos_dias(df, dias):
     return df["Data Tramite"].dt.strftime("%Y-%m-%d").isin(list(dias))
 
 
+def _dos_tipos(df, tipos):
+    """Mascara das OS dos tipos escolhidos (aceita BACKLOG). Sem tipos = todas."""
+    if not tipos:
+        return pd.Series(True, index=df.index)
+    return mascara_tipos(df["Tipo de Solicitação"], tipos)
+
+
 def _codigo_inicial(valor):
     """Pega o codigo numerico que abre o campo: '106008' ou '106008 - ERRO...'."""
     m = re.match(r"\s*(\d{4,8})\b", str(valor))
@@ -472,14 +479,18 @@ def distribute_os(df):
                 "distribute_all": absence[colab].get("distribute_all", False),
                 # Dias de tramite a redistribuir; vazio = todos os dias
                 "dias": set(absence[colab].get("dias") or []),
+                # Tipos de servico a redistribuir (filtro da sidebar); vazio = todos
+                "tipos": list(absence[colab].get("tipos") or []),
             }
+            absent_collabs[colab]["parcial"] = bool(absent_collabs[colab]["dias"]
+                                                    or absent_collabs[colab]["tipos"])
         else:
             active_collabs[colab] = zonas
 
     distribution = {colab: pd.DataFrame() for colab in active_collabs}
-    # Ausente so em alguns dias continua com as OS dos demais dias
+    # Ausente so em alguns dias/tipos continua com as OS que nao sairam
     for colab, info in absent_collabs.items():
-        if info["dias"]:
+        if info["parcial"]:
             distribution[colab] = pd.DataFrame()
 
     # Tipos com dono exclusivo saem antes: nao entram no rateio por zona
@@ -499,8 +510,8 @@ def distribute_os(df):
             distribution[dono] = pd.concat([distribution[dono], recorte])
             continue
         info = absent_collabs.get(dono, {})
-        sai = _nos_dias(recorte, info.get("dias"))
-        if dono in distribution:  # ausente so em alguns dias: fica com o resto
+        sai = _nos_dias(recorte, info.get("dias")) & _dos_tipos(recorte, info.get("tipos"))
+        if dono in distribution:  # ausente so em alguns dias/tipos: fica com o resto
             distribution[dono] = pd.concat([distribution[dono], recorte[~sai]])
         alvo = info.get("redirect_to")
         if alvo not in active_collabs:
@@ -511,9 +522,9 @@ def distribute_os(df):
     for colab, info in absent_collabs.items():
         zonas_ausente = info["zonas"]
         os_zonas = df_normal[df_normal["Zona Ligacao"].isin(zonas_ausente)]
-        sai = _nos_dias(os_zonas, info["dias"])
+        sai = _nos_dias(os_zonas, info["dias"]) & _dos_tipos(os_zonas, info["tipos"])
         os_ausente = os_zonas[sai]
-        if info["dias"]:
+        if info["parcial"]:
             distribution[colab] = pd.concat([distribution[colab], os_zonas[~sai]])
 
         if os_ausente.empty:
@@ -1933,10 +1944,12 @@ if st.session_state.is_admin:
 
                 # Dias (Data Tramite) das OS do ausente que serao redistribuidas.
                 # Vazio = todos os dias. Os dias nao escolhidos ficam com ele.
+                # Segue o filtro Tipo de Servico da sidebar: so as OS desses
+                # tipos aparecem aqui e so elas sao redistribuidas.
                 codigos_df, _ = serie_codigos(df)
                 exclusivos_aus = [c for c, d in CODIGOS_EXCLUSIVOS.items() if d == absent_colab]
                 do_ausente = (df["Zona Ligacao"].isin(zonas_do_colaborador(absent_colab))
-                              | codigos_df.isin(exclusivos_aus))
+                              | codigos_df.isin(exclusivos_aus)) & _dos_tipos(df, selected_tipos)
                 qtd_por_dia = (df.loc[do_ausente, "Data Tramite"].dropna().dt.date
                                .value_counts().sort_index())
                 dias_escolhidos = st.multiselect(
@@ -1944,14 +1957,18 @@ if st.session_state.is_admin:
                     list(qtd_por_dia.index),
                     format_func=lambda d: f"{d.strftime('%d/%m/%Y')} ({qtd_por_dia[d]} OS)",
                     placeholder="Todos os dias",
-                    key=f"absent_dias_{absent_colab}",
+                    key=f"absent_dias_{absent_colab}_{'|'.join(selected_tipos)}",
                 )
+                if selected_tipos:
+                    st.caption("Só as OS do filtro Tipo de Serviço serão redistribuídas: "
+                               + ", ".join(selected_tipos))
 
                 if st.button("Confirmar Ausencia", key="btn_confirm_absence", use_container_width=True):
                     config = {
                         "redirect_to": target_colab if redirect_mode == "Redirecionar para colega especifico" else None,
                         "distribute_all": redirect_mode == "Distribuir para todos",
                         "dias": [d.isoformat() for d in dias_escolhidos],
+                        "tipos": list(selected_tipos),
                         "registered_at": datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M:%S"),
                     }
                     absence[absent_colab] = config
@@ -1973,6 +1990,7 @@ if st.session_state.is_admin:
                         dias_txt = (", ".join(datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m")
                                               for d in dias_cfg)
                                     if dias_cfg else "Todos os dias")
+                        tipos_txt = _esc(", ".join(info.get("tipos") or [])) or "Todos os tipos"
 
                         st.markdown(f"""
                         <div style="background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.2);
@@ -1981,6 +1999,7 @@ if st.session_state.is_admin:
                             <div style="color: rgba(255,255,255,0.5); font-size: 12px;">
                                 Redirecionado para: {dest}<br>
                                 Dias redistribuídos: {dias_txt}<br>
+                                Tipos redistribuídos: {tipos_txt}<br>
                                 Registrado em: {registered}
                             </div>
                         </div>
