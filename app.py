@@ -1341,15 +1341,10 @@ if st.session_state.df_loaded is not None:
 
         # Login ADM
         if not st.session_state.is_admin:
-            with st.expander("Login", expanded=False):
-                user_input = st.text_input("Usuario", key="adm_user")
-                pass_input = st.text_input("Senha", type="password", key="adm_pass")
-                if st.button("Entrar", key="btn_login", use_container_width=True):
-                    if user_input == ADMIN_USER and pass_input == ADMIN_PASS:
-                        st.session_state.is_admin = True
-                        st.rerun()
-                    else:
-                        st.error("Credenciais invalidas")
+            # Abre a janela de senha no meio da tela (ver "Janela de senha do admin")
+            if st.button("Entrar como Admin", key="btn_login", use_container_width=True):
+                st.session_state["_pedir_senha"] = True
+                st.rerun()
         else:
             st.markdown(
                 '<div class="hub-status"><span class="hub-status__dot"></span>Admin Conectado</div>',
@@ -1413,6 +1408,92 @@ if st.session_state.df_loaded is not None:
             f'<div class="hub-updated">Atualizado em {datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M")}</div>',
             unsafe_allow_html=True,
         )
+
+# ---------------------------------------------------------------------------
+# Janela de senha do admin (no meio da tela, com o fundo desfocado)
+# ---------------------------------------------------------------------------
+if st.session_state.get("_pedir_senha") and not st.session_state.is_admin:
+    st.markdown(
+        """
+        <style>
+        .hub-login-fundo {
+            position: fixed;
+            inset: 0;
+            z-index: 999992;
+            background: rgba(10, 24, 52, 0.55);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .st-key-hub_login {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(400px, calc(100vw - 32px));
+            z-index: 999993;
+            padding: 32px 32px 24px 32px;
+            border-radius: 24px;
+            background: rgba(15, 32, 68, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+        }
+        .hub-login__icone {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 14px auto;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #00D4AA;
+            background: rgba(0, 212, 170, 0.10);
+            border: 1px solid rgba(0, 212, 170, 0.45);
+        }
+        .hub-login__titulo {
+            text-align: center;
+            color: #FFFFFF;
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 4px 0;
+        }
+        .hub-login__texto {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.65);
+            font-size: 14px;
+            margin: 0 0 6px 0;
+        }
+        .st-key-hub_login [data-testid="stForm"] {
+            border: none;
+            padding: 0;
+        }
+        </style>
+        <div class="hub-login-fundo"></div>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.container(key="hub_login"):
+        st.markdown(
+            f'<div class="hub-login__icone">{svg_icon("shield", 26)}</div>'
+            '<p class="hub-login__titulo">Acesso administrador</p>'
+            '<p class="hub-login__texto">Digite a senha para entrar</p>',
+            unsafe_allow_html=True,
+        )
+        with st.form("form_senha_admin", border=False):
+            senha = st.text_input("Senha", type="password", key="adm_pass",
+                                  placeholder="Senha", label_visibility="collapsed")
+            col_cancelar, col_entrar = st.columns(2)
+            cancelar = col_cancelar.form_submit_button("Cancelar", use_container_width=True)
+            entrar = col_entrar.form_submit_button("Entrar", type="primary", use_container_width=True)
+        if cancelar:
+            st.session_state["_pedir_senha"] = False
+            st.rerun()
+        elif entrar:
+            if senha == ADMIN_PASS:
+                st.session_state.is_admin = True
+                st.session_state["_pedir_senha"] = False
+                st.rerun()
+            else:
+                st.error("Senha incorreta")
 
 # ---------------------------------------------------------------------------
 # Conteudo principal
