@@ -11,6 +11,7 @@ import os
 import re
 import unicodedata
 import threading
+import base64
 from html import escape as _esc
 
 icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
@@ -89,10 +90,10 @@ EQUIPE_LOGINS = {
 
 # Tipos de servico com dono exclusivo, independentemente da zona da OS.
 # 112001 Devolucao de Valores - Ligacao e 206004 Cancelamento Fatura - Chamados
-# Service Now: so da Eliana, no estado todo.
+# Service Now: so do Clever, no estado todo (eram da Eliana ate 18/11/2026).
 CODIGOS_EXCLUSIVOS = {
-    "112001": "ELIANA CATARINA BALOK CHAGAS",
-    "206004": "ELIANA CATARINA BALOK CHAGAS",
+    "112001": "CLEVER FANFA SARMENTO JUNIOR",
+    "206004": "CLEVER FANFA SARMENTO JUNIOR",
     "306006": "ALEXANDRE PEDROSO LOPES",
 }
 
@@ -501,7 +502,7 @@ def distribute_os(df):
         mask = df_normal["Zona Ligacao"].isin(zonas)
         distribution[colab] = pd.concat([distribution[colab], df_normal[mask]])
 
-    # Dono unico por tipo, no estado todo (ex.: devolucao de valores -> Eliana)
+    # Dono unico por tipo, no estado todo (ex.: devolucao de valores -> Clever)
     for cod, dono in CODIGOS_EXCLUSIVOS.items():
         recorte = df[codigos == cod]
         if recorte.empty:
@@ -1180,152 +1181,167 @@ def load_logo_centralizada_no_c(path: str, altura_ae: float = 0.25):
         return None
 
 # ---------------------------------------------------------------------------
+# Leitura da extracao do SCAE
+# ---------------------------------------------------------------------------
+def carregar_extracao(uploaded_file):
+    """Le a extracao do SCAE e guarda no estado da sessao.
+
+    Usada pelo upload da tela inicial e pelo da sidebar.
+    """
+    try:
+        df_raw = pd.read_excel(uploaded_file)
+        # So as abertas seguem para o sistema; as encerradas ficam
+        # separadas e so o painel admin usa.
+        df, df_enc, col_enc = separar_abertas_encerradas(df_raw)
+        # Repasse/Verificacao/Vistoria so entram depois de executadas em campo
+        df, qtd_sem_ocorrencia, tem_col_ocorrencia = ocultar_sem_ocorrencia(df)
+        df["Data Tramite"] = pd.to_datetime(df["Data Tramite"], errors="coerce")
+        df["Data Pedido"] = pd.to_datetime(df["Data Pedido"], errors="coerce")
+        df = aplicar_status(df)
+        primeira_carga = st.session_state.df_loaded is None
+        st.session_state.df_loaded = df
+        st.session_state.df_encerradas = df_enc
+        st.session_state.col_encerramento = col_enc
+        msg = f"{len(df)} registros em aberto"
+        if qtd_sem_ocorrencia:
+            msg += f" · {qtd_sem_ocorrencia} aguardando execução em campo (ocultas)"
+        if len(df_enc):
+            msg += f" · {len(df_enc)} encerradas"
+        st.success(msg)
+        if not tem_col_ocorrencia:
+            st.warning("A coluna 'Ocorrência Encerramento' não foi exportada na extração: "
+                       "as OS de " + ", ".join(TIPOS_EXIGEM_OCORRENCIA)
+                       + " aparecem mesmo sem execução em campo.")
+        if primeira_carga:
+            st.rerun()
+    except Exception as e:
+        st.error(f"Erro ao carregar: {e}")
+
+
+# ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
-with st.sidebar:
-    logo = load_logo_centralizada_no_c(ICONE_FAT)
-    if logo is not None:
-        st.markdown(
-            """
-            <style>
-            /* sobe o conteúdo da sidebar */
-            [data-testid="stSidebarHeader"] {
-                height: 0.2rem;
-                min-height: 0;
-                padding: 0;
-            }
-            [data-testid="stSidebarUserContent"] {
-                padding-top: 0 !important;
-            }
+# Sem arquivo carregado a sidebar nao aparece: o upload fica na tela inicial.
+selected_colab = "Todos"
+selected_tipos = []
+if st.session_state.df_loaded is not None:
+    with st.sidebar:
+        logo = load_logo_centralizada_no_c(ICONE_FAT)
+        if logo is not None:
+            st.markdown(
+                """
+                <style>
+                /* sobe o conteúdo da sidebar */
+                [data-testid="stSidebarHeader"] {
+                    height: 0.2rem;
+                    min-height: 0;
+                    padding: 0;
+                }
+                [data-testid="stSidebarUserContent"] {
+                    padding-top: 0 !important;
+                }
 
-            /* centraliza e controla o tamanho da logo */
-            [data-testid="stSidebar"] [data-testid="stImage"] {
-                display: flex;
-                justify-content: center;
-            }
-            [data-testid="stSidebar"] [data-testid="stImage"] img {
-                width: 230px !important;   /* ajuste o tamanho aqui */
-                max-width: 100%;
-                height: auto;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.image(logo)
-    else:
-        # Fallback caso o arquivo nao seja encontrado
-        st.markdown("""
-        <div style="text-align: center; padding: 20px 0 10px 0;">
-            <div style="font-size: 28px; font-weight: 800; color: #00C896;">
-                FATURAMENTO
+                /* centraliza e controla o tamanho da logo */
+                [data-testid="stSidebar"] [data-testid="stImage"] {
+                    display: flex;
+                    justify-content: center;
+                }
+                [data-testid="stSidebar"] [data-testid="stImage"] img {
+                    width: 230px !important;   /* ajuste o tamanho aqui */
+                    max-width: 100%;
+                    height: auto;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.image(logo)
+        else:
+            # Fallback caso o arquivo nao seja encontrado
+            st.markdown("""
+            <div style="text-align: center; padding: 20px 0 10px 0;">
+                <div style="font-size: 28px; font-weight: 800; color: #00C896;">
+                    FATURAMENTO
+                </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-    st.markdown("---")
-
-    # Login ADM
-    if not st.session_state.is_admin:
-        with st.expander("Login", expanded=False):
-            user_input = st.text_input("Usuario", key="adm_user")
-            pass_input = st.text_input("Senha", type="password", key="adm_pass")
-            if st.button("Entrar", key="btn_login", use_container_width=True):
-                if user_input == ADMIN_USER and pass_input == ADMIN_PASS:
-                    st.session_state.is_admin = True
-                    st.rerun()
-                else:
-                    st.error("Credenciais invalidas")
-    else:
-        st.markdown(
-            '<div class="hub-status"><span class="hub-status__dot"></span>Admin Conectado</div>',
-            unsafe_allow_html=True,
-        )
-        if st.button("Sair", key="btn_logout", use_container_width=True):
-            st.session_state.is_admin = False
-            st.rerun()
-
-    st.markdown("---")
-
-            # Dados carregados (usado para decidir o que aparece na sidebar)
-    df_for_types = st.session_state.get("df_loaded")
-
-    # Seletor de colaborador (so aparece depois do upload)
-    if df_for_types is not None and COLABORADORES_ZONAS:
-        colab_names = ["Todos"] + sorted(COLABORADORES_ZONAS.keys())
-        # Clique no grafico "OS por Colaborador" (painel ADM) escolhe o nome aqui.
-        # Precisa ser aplicado ANTES de instanciar o selectbox: o Streamlit nao
-        # deixa alterar a chave de um widget ja criado no mesmo run.
-        pendente = st.session_state.pop("_colab_click_pending", None)
-        if pendente in colab_names:
-            st.session_state["colab_select"] = pendente
-        st.markdown('<p class="hub-label">Colaborador</p>', unsafe_allow_html=True)
-        selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select", label_visibility="collapsed")
-    else:
-        selected_colab = "Todos"
-
-        # Filtro por tipo de servico (multiplos; lista vazia = todos)
-    if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
-        tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
-        # BACKLOG fica sempre no topo. Com ele marcado, os tipos do backlog
-        # somem da lista (ja estao incluidos) e saem da selecao, se estavam.
-        # Ajuste feito ANTES de instanciar o multiselect (regra do Streamlit).
-        escolha_atual = st.session_state.get("tipo_multiselect", [])
-        if OPCAO_BACKLOG in escolha_atual:
-            tipos_disponiveis = [t for t in tipos_disponiveis if not eh_backlog(t)]
-            sem_repetidos = [t for t in escolha_atual if t == OPCAO_BACKLOG or not eh_backlog(t)]
-            if sem_repetidos != escolha_atual:
-                st.session_state["tipo_multiselect"] = sem_repetidos
-        st.markdown('<p class="hub-label">Tipo de Serviço</p>', unsafe_allow_html=True)
-        selected_tipos = st.multiselect(
-            "Tipo de Serviço", [OPCAO_BACKLOG] + tipos_disponiveis, key="tipo_multiselect",
-            placeholder="Todos", label_visibility="collapsed",
-        )
-    else:
-        selected_tipos = []
-
-    if df_for_types is not None:
         st.markdown("---")
 
-        # Upload do arquivo
-    st.markdown('<p class="hub-label">Carregar Extração</p>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("Carregar extração", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
-
-    if uploaded_file is not None:
-        try:
-            df_raw = pd.read_excel(uploaded_file)
-            # So as abertas seguem para o sistema; as encerradas ficam
-            # separadas e so o painel admin usa.
-            df, df_enc, col_enc = separar_abertas_encerradas(df_raw)
-            # Repasse/Verificacao/Vistoria so entram depois de executadas em campo
-            df, qtd_sem_ocorrencia, tem_col_ocorrencia = ocultar_sem_ocorrencia(df)
-            df["Data Tramite"] = pd.to_datetime(df["Data Tramite"], errors="coerce")
-            df["Data Pedido"] = pd.to_datetime(df["Data Pedido"], errors="coerce")
-            df = aplicar_status(df)
-            primeira_carga = st.session_state.df_loaded is None
-            st.session_state.df_loaded = df
-            st.session_state.df_encerradas = df_enc
-            st.session_state.col_encerramento = col_enc
-            msg = f"{len(df)} registros em aberto"
-            if qtd_sem_ocorrencia:
-                msg += f" · {qtd_sem_ocorrencia} aguardando execução em campo (ocultas)"
-            if len(df_enc):
-                msg += f" · {len(df_enc)} encerradas"
-            st.success(msg)
-            if not tem_col_ocorrencia:
-                st.warning("A coluna 'Ocorrência Encerramento' não foi exportada na extração: "
-                           "as OS de " + ", ".join(TIPOS_EXIGEM_OCORRENCIA)
-                           + " aparecem mesmo sem execução em campo.")
-            if primeira_carga:
+        # Login ADM
+        if not st.session_state.is_admin:
+            with st.expander("Login", expanded=False):
+                user_input = st.text_input("Usuario", key="adm_user")
+                pass_input = st.text_input("Senha", type="password", key="adm_pass")
+                if st.button("Entrar", key="btn_login", use_container_width=True):
+                    if user_input == ADMIN_USER and pass_input == ADMIN_PASS:
+                        st.session_state.is_admin = True
+                        st.rerun()
+                    else:
+                        st.error("Credenciais invalidas")
+        else:
+            st.markdown(
+                '<div class="hub-status"><span class="hub-status__dot"></span>Admin Conectado</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("Sair", key="btn_logout", use_container_width=True):
+                st.session_state.is_admin = False
                 st.rerun()
-        except Exception as e:
-            st.error(f"Erro ao carregar: {e}")
 
-    st.markdown("---")
-    st.markdown(
-        f'<div class="hub-updated">Atualizado em {datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M")}</div>',
-        unsafe_allow_html=True,
-    )
+        st.markdown("---")
+
+                # Dados carregados (usado para decidir o que aparece na sidebar)
+        df_for_types = st.session_state.get("df_loaded")
+
+        # Seletor de colaborador (so aparece depois do upload)
+        if df_for_types is not None and COLABORADORES_ZONAS:
+            colab_names = ["Todos"] + sorted(COLABORADORES_ZONAS.keys())
+            # Clique no grafico "OS por Colaborador" (painel ADM) escolhe o nome aqui.
+            # Precisa ser aplicado ANTES de instanciar o selectbox: o Streamlit nao
+            # deixa alterar a chave de um widget ja criado no mesmo run.
+            pendente = st.session_state.pop("_colab_click_pending", None)
+            if pendente in colab_names:
+                st.session_state["colab_select"] = pendente
+            st.markdown('<p class="hub-label">Colaborador</p>', unsafe_allow_html=True)
+            selected_colab = st.selectbox("Selecione seu nome", colab_names, key="colab_select", label_visibility="collapsed")
+        else:
+            selected_colab = "Todos"
+
+            # Filtro por tipo de servico (multiplos; lista vazia = todos)
+        if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
+            tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
+            # BACKLOG fica sempre no topo. Com ele marcado, os tipos do backlog
+            # somem da lista (ja estao incluidos) e saem da selecao, se estavam.
+            # Ajuste feito ANTES de instanciar o multiselect (regra do Streamlit).
+            escolha_atual = st.session_state.get("tipo_multiselect", [])
+            if OPCAO_BACKLOG in escolha_atual:
+                tipos_disponiveis = [t for t in tipos_disponiveis if not eh_backlog(t)]
+                sem_repetidos = [t for t in escolha_atual if t == OPCAO_BACKLOG or not eh_backlog(t)]
+                if sem_repetidos != escolha_atual:
+                    st.session_state["tipo_multiselect"] = sem_repetidos
+            st.markdown('<p class="hub-label">Tipo de Serviço</p>', unsafe_allow_html=True)
+            selected_tipos = st.multiselect(
+                "Tipo de Serviço", [OPCAO_BACKLOG] + tipos_disponiveis, key="tipo_multiselect",
+                placeholder="Todos", label_visibility="collapsed",
+            )
+        else:
+            selected_tipos = []
+
+        if df_for_types is not None:
+            st.markdown("---")
+
+            # Upload do arquivo
+        st.markdown('<p class="hub-label">Carregar Extração</p>', unsafe_allow_html=True)
+        uploaded_file = st.file_uploader("Carregar extração", type=["xlsx", "xls"], key="file_upload", label_visibility="collapsed")
+
+        if uploaded_file is not None:
+            carregar_extracao(uploaded_file)
+
+        st.markdown("---")
+        st.markdown(
+            f'<div class="hub-updated">Atualizado em {datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M")}</div>',
+            unsafe_allow_html=True,
+        )
 
 # ---------------------------------------------------------------------------
 # Conteudo principal
@@ -1333,14 +1349,77 @@ with st.sidebar:
 df = st.session_state.df_loaded
 
 if df is None:
+    # Tela inicial: sem sidebar. A logo fica fixa no canto da tela e o upload
+    # do relatorio fica dentro do card "Nenhum arquivo carregado".
+    logo_inicio = load_logo_centralizada_no_c(ICONE_FAT)
+    if logo_inicio is not None:
+        buf_logo = BytesIO()
+        logo_inicio.save(buf_logo, format="PNG")
+        st.markdown(
+            '<img class="hub-logo-canto" alt="Faturamento" src="data:image/png;base64,'
+            + base64.b64encode(buf_logo.getvalue()).decode() + '">',
+            unsafe_allow_html=True,
+        )
     st.markdown(
-        '<div class="hub-empty">'
-        f'<div class="hub-empty__icon">{svg_icon("upload", 28)}</div>'
-        '<h2>Nenhum arquivo carregado</h2>'
-        '<p>Faça o upload da extração do SCAE na barra lateral para iniciar a '
-        'distribuição das ordens de serviço.</p></div>',
+        """
+        <style>
+        .hub-logo-canto {
+            position: fixed;
+            top: 18px;
+            left: 28px;
+            width: 230px;
+            max-width: 40vw;
+            height: auto;
+            z-index: 999991;
+        }
+        /* card de upload: mesmo visual do card "Nenhum arquivo carregado" */
+        .st-key-hub_inicio {
+            max-width: 470px;
+            margin: 9vh auto 0 auto;
+            padding: 36px 40px 32px 40px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+        .st-key-hub_inicio .hub-empty {
+            background: none;
+            border: none;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            margin: 0;
+            padding: 0;
+            max-width: none;
+        }
+        .st-key-hub_inicio [data-testid="stFileUploaderDropzone"] {
+            background: rgba(0, 212, 170, 0.06);
+            border: 1.5px dashed rgba(0, 212, 170, 0.55);
+            border-radius: 14px;
+        }
+        .st-key-hub_inicio [data-testid="stFileUploaderDropzone"]:hover {
+            background: rgba(0, 212, 170, 0.12);
+            border-color: #00D4AA;
+        }
+        </style>
+        """,
         unsafe_allow_html=True,
     )
+    with st.container(key="hub_inicio"):
+        st.markdown(
+            '<div class="hub-empty">'
+            f'<div class="hub-empty__icon">{svg_icon("upload", 28)}</div>'
+            '<h2>Nenhum arquivo carregado</h2>'
+            '<p>Arraste o relatório extraído do SCAE ou clique para selecionar o '
+            'arquivo e iniciar a distribuição das ordens de serviço.</p></div>',
+            unsafe_allow_html=True,
+        )
+        arquivo_inicio = st.file_uploader("Carregar extração", type=["xlsx", "xls"],
+                                          key="file_upload_inicio", label_visibility="collapsed")
+        if arquivo_inicio is not None:
+            carregar_extracao(arquivo_inicio)
     st.stop()
 
 # ---------------------------------------------------------------------------
