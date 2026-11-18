@@ -1412,8 +1412,7 @@ if df is None:
             '<div class="hub-empty">'
             f'<div class="hub-empty__icon">{svg_icon("upload", 28)}</div>'
             '<h2>Nenhum arquivo carregado</h2>'
-            '<p>Arraste o relatório extraído do SCAE ou clique para selecionar o '
-            'arquivo e iniciar a distribuição das ordens de serviço.</p></div>',
+            '<p>Carregue a extração do SCAE.</p></div>',
             unsafe_allow_html=True,
         )
         arquivo_inicio = st.file_uploader("Carregar extração", type=["xlsx", "xls"],
