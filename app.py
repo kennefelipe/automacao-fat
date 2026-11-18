@@ -10,6 +10,7 @@ import json
 import os
 import re
 import unicodedata
+import threading
 from html import escape as _esc
 
 icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
@@ -28,6 +29,9 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 AUDIT_FILE = "audit_log.json"
 ABSENCE_FILE = "absence_config.json"
+# Dono fixo de cada OS redistribuida ("Distribuir para todos"), para a OS nao
+# trocar de colaborador a cada nova extracao carregada.
+REDIST_FILE = "redistribuicao.json"
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -287,6 +291,82 @@ def save_absence_config(config):
         json.dump(config, f, ensure_ascii=False, indent=2)
 
 
+def load_redistribuicao():
+    """{nº da OS: {"dono": colaborador, "ausente": de quem saiu}}."""
+    if os.path.exists(REDIST_FILE):
+        with open(REDIST_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_redistribuicao(fixos):
+    with open(REDIST_FILE, "w", encoding="utf-8") as f:
+        json.dump(fixos, f, ensure_ascii=False, indent=2)
+
+
+@st.cache_resource
+def _trava_redistribuicao():
+    """Uma trava so para o app todo: duas pessoas abrindo o HOP ao mesmo
+    tempo nao podem sortear donos diferentes para a mesma OS."""
+    return threading.Lock()
+
+
+def _chave_os(valor):
+    """Nº da OS como texto estavel (123 e 123.0 viram '123')."""
+    try:
+        f = float(valor)
+        if f.is_integer():
+            return str(int(f))
+    except (TypeError, ValueError):
+        pass
+    return str(valor).strip()
+
+
+def limpar_redistribuicao(ausente):
+    """Esquece os donos fixados das OS que sairam deste colaborador."""
+    with _trava_redistribuicao():
+        fixos = load_redistribuicao()
+        restantes = {k: v for k, v in fixos.items() if v.get("ausente") != ausente}
+        if len(restantes) != len(fixos):
+            save_redistribuicao(restantes)
+
+
+def atribuir_uma_vez(os_df, candidatos, ausente):
+    """Dono de cada OS redistribuida, sorteado uma vez so e guardado.
+
+    OS que ja tem dono (ainda na equipe) continua com ele. So as OS novas
+    sao repartidas, sempre para quem esta com menos OS do ausente, em ordem
+    de tramite. Retorna uma Series (mesmo indice de os_df) com o dono.
+    """
+    chaves = os_df["Nº da Solicitação"].map(_chave_os)
+    with _trava_redistribuicao():
+        fixos = load_redistribuicao()
+        carga = {c: 0 for c in candidatos}
+        for ch in chaves:
+            dono = fixos.get(ch, {}).get("dono")
+            if dono in carga:
+                carga[dono] += 1
+        mudou = False
+        ordem = chaves.loc[os_df.sort_values("Data Tramite").index]
+        for ch in ordem:
+            if fixos.get(ch, {}).get("dono") in carga:
+                continue
+            dono = min(candidatos, key=lambda c: carga[c])
+            fixos[ch] = {"dono": dono, "ausente": ausente}
+            carga[dono] += 1
+            mudou = True
+        if mudou:
+            save_redistribuicao(fixos)
+    return chaves.map(lambda ch: fixos[ch]["dono"])
+
+
+def _nos_dias(df, dias):
+    """Mascara das OS cujo tramite cai num dos dias (AAAA-MM-DD). Sem dias = todas."""
+    if not dias:
+        return pd.Series(True, index=df.index)
+    return df["Data Tramite"].dt.strftime("%Y-%m-%d").isin(list(dias))
+
+
 def _codigo_inicial(valor):
     """Pega o codigo numerico que abre o campo: '106008' ou '106008 - ERRO...'."""
     m = re.match(r"\s*(\d{4,8})\b", str(valor))
@@ -390,11 +470,17 @@ def distribute_os(df):
                 "zonas": zonas,
                 "redirect_to": absence[colab].get("redirect_to"),
                 "distribute_all": absence[colab].get("distribute_all", False),
+                # Dias de tramite a redistribuir; vazio = todos os dias
+                "dias": set(absence[colab].get("dias") or []),
             }
         else:
             active_collabs[colab] = zonas
 
     distribution = {colab: pd.DataFrame() for colab in active_collabs}
+    # Ausente so em alguns dias continua com as OS dos demais dias
+    for colab, info in absent_collabs.items():
+        if info["dias"]:
+            distribution[colab] = pd.DataFrame()
 
     # Tipos com dono exclusivo saem antes: nao entram no rateio por zona
     codigos, _col = serie_codigos(df)
@@ -409,18 +495,26 @@ def distribute_os(df):
         recorte = df[codigos == cod]
         if recorte.empty:
             continue
-        alvo = dono
-        if alvo not in distribution:
-            info = absent_collabs.get(alvo, {})
-            alvo = info.get("redirect_to")
-            if alvo not in distribution:
-                alvo = next(iter(distribution), None)
+        if dono in active_collabs:
+            distribution[dono] = pd.concat([distribution[dono], recorte])
+            continue
+        info = absent_collabs.get(dono, {})
+        sai = _nos_dias(recorte, info.get("dias"))
+        if dono in distribution:  # ausente so em alguns dias: fica com o resto
+            distribution[dono] = pd.concat([distribution[dono], recorte[~sai]])
+        alvo = info.get("redirect_to")
+        if alvo not in active_collabs:
+            alvo = next(iter(active_collabs), None)
         if alvo is not None:
-            distribution[alvo] = pd.concat([distribution[alvo], recorte])
+            distribution[alvo] = pd.concat([distribution[alvo], recorte[sai]])
 
     for colab, info in absent_collabs.items():
         zonas_ausente = info["zonas"]
-        os_ausente = df_normal[df_normal["Zona Ligacao"].isin(zonas_ausente)]
+        os_zonas = df_normal[df_normal["Zona Ligacao"].isin(zonas_ausente)]
+        sai = _nos_dias(os_zonas, info["dias"])
+        os_ausente = os_zonas[sai]
+        if info["dias"]:
+            distribution[colab] = pd.concat([distribution[colab], os_zonas[~sai]])
 
         if os_ausente.empty:
             continue
@@ -434,10 +528,11 @@ def distribute_os(df):
             if not active_list:  # ninguem elegivel: nao perde as OS
                 active_list = list(active_collabs.keys())
             if active_list:
-                chunks = [os_ausente.iloc[i::len(active_list)] for i in range(len(active_list))]
-                for idx, ac in enumerate(active_list):
-                    if idx < len(chunks):
-                        distribution[ac] = pd.concat([distribution[ac], chunks[idx]])
+                # Reparte uma vez so: cada OS fica com o mesmo dono nas
+                # proximas extracoes (evita duas pessoas na mesma OS)
+                donos = atribuir_uma_vez(os_ausente, active_list, colab)
+                for ac in active_list:
+                    distribution[ac] = pd.concat([distribution[ac], os_ausente[donos == ac]])
 
     for colab in distribution:
         distribution[colab] = distribution[colab].drop_duplicates(subset=["Nº da Solicitação"])
@@ -546,6 +641,32 @@ def panel_header(titulo, icon, chip=None, variante=None, chip_accent=False):
 
 def fmt_int(n):
     return f"{int(n):,}".replace(",", ".")
+
+
+def barras_html(itens, total, cor=None, destaque=None):
+    """Barras horizontais no padrao de 'Distribuicao por Tipo de Servico'.
+
+    itens: [(rotulo, qtd)] na ordem de exibicao. cor: troca o preenchimento
+    padrao (laranja). destaque: so esse rotulo fica aceso, os demais apagados.
+    """
+    maior = max((q for _, q in itens), default=1) or 1
+    barras = []
+    for i, (rotulo, qtd) in enumerate(itens):
+        pct = (qtd / total) * 100 if total > 0 else 0
+        largura = (qtd / maior) * 100
+        estilo_fill = f"width:{largura:.2f}%" + (f";background:{cor}" if cor else "")
+        apagado = destaque is not None and rotulo != destaque
+        estilo_bar = f"--i:{i}" + (";filter:saturate(0.3) brightness(0.6)" if apagado else "")
+        barras.append(
+            f'<div class="hub-bar" style="{estilo_bar}">'
+            '<div class="hub-bar__row">'
+            f'<span class="hub-bar__name">{_esc(str(rotulo))}</span>'
+            f'<span class="hub-bar__val">{fmt_int(qtd)}<em>{pct:.1f}%</em></span>'
+            '</div>'
+            f'<div class="hub-bar__track"><div class="hub-bar__fill" style="{estilo_fill}"></div></div>'
+            '</div>'
+        )
+    return '<div class="hub-bars">' + "".join(barras) + "</div>"
 
 
 PLOT_FONT = "Plus Jakarta Sans, Inter, Segoe UI, sans-serif"
@@ -1681,28 +1802,12 @@ if st.session_state.is_admin:
             if "Zona Ligacao" in df_dia.columns and not df_dia.empty:
                 df_city = df_dia.copy()
                 df_city["Cidade"] = df_city["Zona Ligacao"].map(ZONA_CIDADE)
-                city_counts = df_city["Cidade"].dropna().value_counts().head(15).sort_values(ascending=True)
+                city_counts = df_city["Cidade"].dropna().value_counts().head(15)
                 if not city_counts.empty:
-                    fig_city = go.Figure(go.Bar(
-                        x=city_counts.values,
-                        y=city_counts.index,
-                        orientation="h",
-                        text=city_counts.values,
-                        textposition="outside",
-                        cliponaxis=False,
-                        textfont=dict(color="rgba(255,255,255,0.88)", size=12),
-                        marker=dict(color="#FF6B6B", cornerradius=4),
-                        hovertemplate="<b>%{y}</b><br>%{x} OS pendentes<extra></extra>",
-                    ))
-                    estilo_grafico(
-                        fig_city,
-                        margin=dict(l=0, r=40, t=10, b=10),
-                        height=450,
-                        xaxis=dict(visible=False),
-                        yaxis=dict(automargin=True, color="rgba(255,255,255,0.72)"),
-                        bargap=0.38,
-                    )
-                    st.plotly_chart(fig_city, use_container_width=True, config={"displayModeBar": False})
+                    # Barras no padrao do Tipo de Servico, em vermelho
+                    st.markdown(barras_html(list(city_counts.items()), len(df_dia),
+                                            cor="#FF6B6B"),
+                                unsafe_allow_html=True)
                 else:
                     st.info("Sem dados de cidade disponíveis.")
             else:
@@ -1712,55 +1817,18 @@ if st.session_state.is_admin:
             # Ranking recalculado sobre o dia + tipo selecionados (todos os colaboradores)
             dist_adm = distribute_os(df_mapa)
             colab_os = {name: len(d) for name, d in dist_adm.items() if not d.empty}
-            colab_os = dict(sorted(colab_os.items(), key=lambda x: x[1], reverse=False))
-            full_names = list(colab_os.keys())
-            names = [n.split("(")[0].strip() for n in full_names]
+            colab_os = dict(sorted(colab_os.items(), key=lambda x: x[1], reverse=True))
             values = list(colab_os.values())
-            short_to_full = {c.split("(")[0].strip(): c for c in COLABORADORES_ZONAS}
             st.markdown(panel_header("OS Pendente por Colaborador", "users",
                                      f"{len(values)} colaboradores", variante="card"),
                         unsafe_allow_html=True)
             if values:
-                # destaca o colaborador escolhido; esmaece os demais
-                if is_todos:
-                    cores = ["#00C896"] * len(full_names)
-                else:
-                    cores = ["#00C896" if n == selected_colab else "rgba(0,200,150,0.25)"
-                             for n in full_names]
-                fig_colab = go.Figure(go.Bar(
-                    x=values,
-                    y=names,
-                    orientation="h",
-                    text=values,
-                    textposition="outside",
-                    cliponaxis=False,
-                    textfont=dict(color="rgba(255,255,255,0.88)", size=12),
-                    marker=dict(color=cores, cornerradius=4),
-                    hovertemplate="<b>%{y}</b><br>%{x} OS pendentes<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>",
-                ))
-                estilo_grafico(
-                    fig_colab,
-                    margin=dict(l=0, r=40, t=10, b=10),
-                    height=450,
-                    xaxis=dict(visible=False),
-                    yaxis=dict(automargin=True, color="rgba(255,255,255,0.72)"),
-                    bargap=0.38,
-                )
-                ev_colab = st.plotly_chart(
-                    fig_colab, use_container_width=True,
-                    config={"displayModeBar": False},
-                    on_select="rerun", key="adm_colab_sel",
-                )
-                # Clicar numa barra seleciona o colaborador no topo (filtra tudo)
-                if ev_colab and ev_colab.selection and ev_colab.selection.points:
-                    clicado = ev_colab.selection.points[0].get("y")
-                    full = short_to_full.get(clicado)
-                    if full and full != selected_colab:
-                        st.session_state["_colab_click_pending"] = full
-                        st.rerun()
-                if is_todos:
-                    st.caption("Clique numa barra para filtrar todo o painel por aquele colaborador. "
-                               "Para voltar a todos, use o seletor na barra lateral.")
+                # Barras no padrao do Tipo de Servico (laranja); com um
+                # colaborador escolhido, so ele fica aceso
+                itens = [(n.split("(")[0].strip(), q) for n, q in colab_os.items()]
+                destaque = None if is_todos else selected_colab.split("(")[0].strip()
+                st.markdown(barras_html(itens, sum(values), destaque=destaque),
+                            unsafe_allow_html=True)
             else:
                 st.info("Nenhuma OS para os filtros selecionados.")
 
@@ -1863,14 +1931,32 @@ if st.session_state.is_admin:
                     available = [c for c in all_collabs if c != absent_colab]
                     target_colab = st.selectbox("Redirecionar para", available, key="target_select")
 
+                # Dias (Data Tramite) das OS do ausente que serao redistribuidas.
+                # Vazio = todos os dias. Os dias nao escolhidos ficam com ele.
+                codigos_df, _ = serie_codigos(df)
+                exclusivos_aus = [c for c, d in CODIGOS_EXCLUSIVOS.items() if d == absent_colab]
+                do_ausente = (df["Zona Ligacao"].isin(zonas_do_colaborador(absent_colab))
+                              | codigos_df.isin(exclusivos_aus))
+                qtd_por_dia = (df.loc[do_ausente, "Data Tramite"].dropna().dt.date
+                               .value_counts().sort_index())
+                dias_escolhidos = st.multiselect(
+                    "Dias a redistribuir (Data Trâmite)",
+                    list(qtd_por_dia.index),
+                    format_func=lambda d: f"{d.strftime('%d/%m/%Y')} ({qtd_por_dia[d]} OS)",
+                    placeholder="Todos os dias",
+                    key=f"absent_dias_{absent_colab}",
+                )
+
                 if st.button("Confirmar Ausencia", key="btn_confirm_absence", use_container_width=True):
                     config = {
                         "redirect_to": target_colab if redirect_mode == "Redirecionar para colega especifico" else None,
                         "distribute_all": redirect_mode == "Distribuir para todos",
+                        "dias": [d.isoformat() for d in dias_escolhidos],
                         "registered_at": datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M:%S"),
                     }
                     absence[absent_colab] = config
                     save_absence_config(absence)
+                    limpar_redistribuicao(absent_colab)  # nova ausencia: reparte do zero
                     add_audit_entry(absent_colab, f"ausencia_registrada -> {target_colab or 'todos'}")
                     st.success(f"Ausencia de {absent_colab} registrada!")
                     st.rerun()
@@ -1883,6 +1969,10 @@ if st.session_state.is_admin:
                         if info.get("distribute_all"):
                             dest = "Distribuido para todos"
                         registered = info.get("registered_at", "")
+                        dias_cfg = sorted(info.get("dias") or [])
+                        dias_txt = (", ".join(datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m")
+                                              for d in dias_cfg)
+                                    if dias_cfg else "Todos os dias")
 
                         st.markdown(f"""
                         <div style="background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.2);
@@ -1890,6 +1980,7 @@ if st.session_state.is_admin:
                             <div style="color: #FF6B6B; font-weight: 600;">{colab}</div>
                             <div style="color: rgba(255,255,255,0.5); font-size: 12px;">
                                 Redirecionado para: {dest}<br>
+                                Dias redistribuídos: {dias_txt}<br>
                                 Registrado em: {registered}
                             </div>
                         </div>
@@ -1900,6 +1991,7 @@ if st.session_state.is_admin:
                     if st.button("Remover Ausencia", key="btn_remove_absence", use_container_width=True):
                         del absence[remove_colab]
                         save_absence_config(absence)
+                        limpar_redistribuicao(remove_colab)
                         add_audit_entry(remove_colab, "ausencia_removida")
                         st.success(f"Ausencia de {remove_colab} removida!")
                         st.rerun()
