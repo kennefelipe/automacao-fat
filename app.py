@@ -12,6 +12,7 @@ import re
 import unicodedata
 import threading
 import base64
+import time
 from html import escape as _esc
 
 icone = Image.open(os.path.join(os.path.dirname(__file__), "logo-corsan-att.png"))
@@ -1181,6 +1182,74 @@ def load_logo_centralizada_no_c(path: str, altura_ae: float = 0.25):
         return None
 
 # ---------------------------------------------------------------------------
+# Tela de carregamento (entre a tela inicial e a distribuicao)
+# ---------------------------------------------------------------------------
+TEMPO_MIN_CARREGANDO = 1.2  # segundos minimos na tela, para nao so "piscar"
+
+
+def mostrar_tela_carregando():
+    """Cobre a tela com o aviso de carregamento. Devolve o espaco reservado,
+    para a tela ser removida com .empty() quando a distribuicao terminar."""
+    espaco = st.empty()
+    espaco.markdown(
+        """
+        <style>
+        .hub-carregando {
+            position: fixed;
+            inset: 0;
+            z-index: 999995;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(10, 24, 52, 0.82);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            /* seguranca: se algo der erro, a tela some sozinha e mostra o erro */
+            animation: hubCarregandoSome 0.4s ease 25s forwards;
+        }
+        .hub-carregando__card {
+            text-align: center;
+            padding: 36px 48px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        }
+        .hub-carregando__anel {
+            width: 54px;
+            height: 54px;
+            margin: 0 auto 20px auto;
+            border-radius: 50%;
+            border: 4px solid rgba(0, 212, 170, 0.18);
+            border-top-color: #00D4AA;
+            animation: hubCarregandoGira 0.9s linear infinite;
+        }
+        .hub-carregando__titulo {
+            color: #FFFFFF;
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 6px 0;
+        }
+        .hub-carregando__texto {
+            color: rgba(255, 255, 255, 0.65);
+            font-size: 14px;
+            margin: 0;
+        }
+        @keyframes hubCarregandoGira { to { transform: rotate(360deg); } }
+        @keyframes hubCarregandoSome { to { opacity: 0; visibility: hidden; } }
+        </style>
+        <div class="hub-carregando"><div class="hub-carregando__card">
+            <div class="hub-carregando__anel"></div>
+            <p class="hub-carregando__titulo">Carregando relatório</p>
+            <p class="hub-carregando__texto">Distribuindo as ordens de serviço...</p>
+        </div></div>
+        """,
+        unsafe_allow_html=True,
+    )
+    return espaco
+
+
+# ---------------------------------------------------------------------------
 # Leitura da extracao do SCAE
 # ---------------------------------------------------------------------------
 def carregar_extracao(uploaded_file):
@@ -1213,6 +1282,8 @@ def carregar_extracao(uploaded_file):
                        "as OS de " + ", ".join(TIPOS_EXIGEM_OCORRENCIA)
                        + " aparecem mesmo sem execução em campo.")
         if primeira_carga:
+            # Mostra a tela de carregamento ate a distribuicao terminar
+            st.session_state["_carregando_desde"] = time.time()
             st.rerun()
     except Exception as e:
         st.error(f"Erro ao carregar: {e}")
@@ -1394,6 +1465,9 @@ if df is None:
             padding: 0;
             max-width: none;
         }
+        .st-key-hub_inicio [data-testid="stFileUploader"] {
+            margin-top: 22px;
+        }
         .st-key-hub_inicio [data-testid="stFileUploaderDropzone"] {
             background: rgba(0, 212, 170, 0.06);
             border: 1.5px dashed rgba(0, 212, 170, 0.55);
@@ -1418,12 +1492,18 @@ if df is None:
         arquivo_inicio = st.file_uploader("Carregar extração", type=["xlsx", "xls"],
                                           key="file_upload_inicio", label_visibility="collapsed")
         if arquivo_inicio is not None:
+            mostrar_tela_carregando()
             carregar_extracao(arquivo_inicio)
     st.stop()
 
 # ---------------------------------------------------------------------------
 # Calculos principais
 # ---------------------------------------------------------------------------
+# Primeira carga: tela de carregamento ate o fim da pagina (removida no final)
+tela_carregando = None
+if "_carregando_desde" in st.session_state:
+    tela_carregando = mostrar_tela_carregando()
+
 distribution = distribute_os(df)
 
 # ---------------------------------------------------------------------------
@@ -2158,3 +2238,11 @@ if st.session_state.is_admin:
                 st.rerun()
         else:
             st.info("Nenhum registro de auditoria ainda.")
+
+# Fim da pagina: remove a tela de carregamento da primeira carga
+if tela_carregando is not None:
+    inicio_carga = st.session_state.pop("_carregando_desde", time.time())
+    falta = TEMPO_MIN_CARREGANDO - (time.time() - inicio_carga)
+    if falta > 0:
+        time.sleep(falta)
+    tela_carregando.empty()
