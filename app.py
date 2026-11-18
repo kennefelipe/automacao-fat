@@ -92,6 +92,10 @@ body:has([data-stale="true"]) .hub-loader {
 """
 HUB_LOADER_HTML = ('<div class="hub-loader"><div class="hub-loader__card">'
                    '<div class="hub-loader__anel"></div>Carregando...</div></div>')
+# Na carga do relatorio (tela inicial e primeira distribuicao) a mini tela nao
+# aparece: ali quem aparece e a tela "Carregando relatorio".
+if st.session_state.get("df_loaded") is None or "_carregando_desde" in st.session_state:
+    HUB_LOADER_CSS += "\n.hub-loader { display: none !important; }\n"
 with open(os.path.join(_ASSETS, "hub.css"), encoding="utf-8") as _f:
     st.markdown(f"<style>{_f.read()}{HUB_LOADER_CSS}</style>{HUB_LOADER_HTML}", unsafe_allow_html=True)
 with open(os.path.join(_ASSETS, "hub_nav.js"), encoding="utf-8") as _f:
