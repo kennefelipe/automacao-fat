@@ -41,8 +41,59 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # Visual: design system (assets/hub.css) e navegacao em pilula (assets/hub_nav.js)
 # ---------------------------------------------------------------------------
 _ASSETS = os.path.join(os.path.dirname(__file__), "assets")
+# Mini tela de carregamento padrao: aparece sozinha sempre que o Streamlit esta
+# processando um clique (status "Stop" no topo ou elementos ainda desatualizados).
+# So surge depois de 0,3 s, para cliques rapidos nao piscarem a tela.
+HUB_LOADER_CSS = """
+.hub-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 999994;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 24, 52, 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, visibility 0s linear 0.15s;
+}
+body:has([data-testid="stStatusWidget"]) .hub-loader,
+body:has([data-stale="true"]) .hub-loader {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 0.2s ease 0.3s, visibility 0s linear 0.3s;
+}
+.hub-loader__card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 26px;
+    border-radius: 18px;
+    background: rgba(15, 32, 68, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
+    color: #FFFFFF;
+    font-size: 15px;
+    font-weight: 600;
+}
+.hub-loader__anel {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 3px solid rgba(0, 212, 170, 0.18);
+    border-top-color: #00D4AA;
+    animation: hubLoaderGira 0.8s linear infinite;
+}
+@keyframes hubLoaderGira { to { transform: rotate(360deg); } }
+"""
+HUB_LOADER_HTML = ('<div class="hub-loader"><div class="hub-loader__card">'
+                   '<div class="hub-loader__anel"></div>Carregando...</div></div>')
 with open(os.path.join(_ASSETS, "hub.css"), encoding="utf-8") as _f:
-    st.markdown(f"<style>{_f.read()}</style>", unsafe_allow_html=True)
+    st.markdown(f"<style>{_f.read()}{HUB_LOADER_CSS}</style>{HUB_LOADER_HTML}", unsafe_allow_html=True)
 with open(os.path.join(_ASSETS, "hub_nav.js"), encoding="utf-8") as _f:
     _HUB_NAV_JS = _f.read()
 try:
@@ -1696,7 +1747,13 @@ elif not is_todos:
 
 st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
 
-tab_acomp, tab_mapa = st.tabs(["Acompanhamento", "Mapa de Cobertura"])
+# Logado como admin, o Painel Administrativo vira a terceira aba
+nomes_abas = ["Acompanhamento", "Mapa de Cobertura"]
+if st.session_state.is_admin:
+    nomes_abas.append("Painel Administrativo")
+abas = st.tabs(nomes_abas)
+tab_acomp, tab_mapa = abas[0], abas[1]
+tab_admin = abas[2] if st.session_state.is_admin else None
 
 with tab_acomp:
     # ---------------------------------------------------------------------------
@@ -2008,316 +2065,318 @@ with tab_mapa:
 # PAINEL ADMINISTRATIVO
 # ===========================================================================
 if st.session_state.is_admin:
-    st.markdown("<div style='height: 18px'></div>", unsafe_allow_html=True)
-    st.markdown(
-        '<div class="hub-admin"><div class="hub-admin__title">'
-        f'<span class="hub-kpi__icon" style="position:static">{svg_icon("shield")}</span>'
-        '<div><strong>Painel Administrativo</strong><small>Visão gerencial da equipe</small></div>'
-        '</div><span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
-        'Acesso restrito</span></div>',
-        unsafe_allow_html=True,
-    )
+    with tab_admin:
+        st.markdown("<div style='height: 18px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="hub-admin"><div class="hub-admin__title">'
+            f'<span class="hub-kpi__icon" style="position:static">{svg_icon("shield")}</span>'
+            '<div><strong>Painel Administrativo</strong><small>Visão gerencial da equipe</small></div>'
+            '</div><span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
+            'Acesso restrito</span></div>',
+            unsafe_allow_html=True,
+        )
 
-    tab_overview, tab_encerradas, tab_absence, tab_audit = st.tabs(
-        ["Visao Geral", "Encerradas", "Cobertura de Ausencias", "Historico / Auditoria"]
-    )
+        tab_overview, tab_encerradas, tab_absence, tab_audit = st.tabs(
+            ["Visao Geral", "Encerradas", "Cobertura de Ausencias", "Historico / Auditoria"]
+        )
 
-    # -----------------------------------------------------------------------
-    # Tab: Visao Geral (Top cidades + Ranking colaboradores)
-    # -----------------------------------------------------------------------
-    with tab_overview:
-        # Nota dos filtros ativos (dia + tipo + colaborador vindos do topo da tela)
-        filtros_ativos = []
-        if not is_todos:
-            filtros_ativos.append(selected_colab.split("(")[0].strip())
-        if selected_tipos:
-            filtros_ativos.append(selected_tipos[0] if len(selected_tipos) == 1
-                                  else f"{len(selected_tipos)} tipos de servico")
-        if selected_dia is not None:
-            filtros_ativos.append(selected_dia.strftime("%d/%m/%Y"))
-        if filtros_ativos:
-            st.markdown(
-                '<span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
-                'Filtrado por: ' + _esc(" · ".join(filtros_ativos)) + "</span>",
-                unsafe_allow_html=True,
-            )
-
-        col_chart1, col_chart2 = st.columns(2)
-
-        with col_chart1:
-            st.markdown(panel_header("Top 15 Cidades com Mais OS Pendente", "building",
-                                     "Top 15", variante="card"), unsafe_allow_html=True)
-            # df_dia ja carrega dia + tipo + colaborador selecionados no topo
-            if "Zona Ligacao" in df_dia.columns and not df_dia.empty:
-                df_city = df_dia.copy()
-                df_city["Cidade"] = df_city["Zona Ligacao"].map(ZONA_CIDADE)
-                city_counts = df_city["Cidade"].dropna().value_counts().head(15)
-                if not city_counts.empty:
-                    # Barras no padrao do Tipo de Servico, em vermelho
-                    st.markdown(barras_html(list(city_counts.items()), len(df_dia),
-                                            cor="#FF6B6B"),
-                                unsafe_allow_html=True)
-                else:
-                    st.info("Sem dados de cidade disponíveis.")
-            else:
-                st.info("Sem OS para os filtros selecionados.")
-
-        with col_chart2:
-            # Ranking recalculado sobre o dia + tipo selecionados (todos os colaboradores)
-            dist_adm = distribute_os(df_mapa)
-            colab_os = {name: len(d) for name, d in dist_adm.items() if not d.empty}
-            colab_os = dict(sorted(colab_os.items(), key=lambda x: x[1], reverse=True))
-            values = list(colab_os.values())
-            st.markdown(panel_header("OS Pendente por Colaborador", "users",
-                                     f"{len(values)} colaboradores", variante="card"),
-                        unsafe_allow_html=True)
-            if values:
-                # Barras no padrao do Tipo de Servico (laranja); com um
-                # colaborador escolhido, so ele fica aceso
-                itens = [(n.split("(")[0].strip(), q) for n, q in colab_os.items()]
-                destaque = None if is_todos else selected_colab.split("(")[0].strip()
-                st.markdown(barras_html(itens, sum(values), destaque=destaque),
-                            unsafe_allow_html=True)
-            else:
-                st.info("Nenhuma OS para os filtros selecionados.")
-
-    # -----------------------------------------------------------------------
-    # Tab: Encerradas (so existe quando o relatorio traz abertas + encerradas)
-    # -----------------------------------------------------------------------
-    with tab_encerradas:
-        st.markdown(panel_header("Solicitações Encerradas por Usuário", "check", variante="tab"),
-                    unsafe_allow_html=True)
-
-        df_enc = st.session_state.get("df_encerradas")
-        col_enc = st.session_state.get("col_encerramento")
-
-        if df_enc is None or df_enc.empty or col_enc is None:
-            st.info("Sem dados de encerradas. Carregue o relatório com OS em aberto "
-                    "e encerradas para ver este gráfico.")
-        else:
-            df_e = df_enc.copy()
-            if selected_tipos and "Tipo de Solicitação" in df_e.columns:
-                df_e = df_e[mascara_tipos(df_e["Tipo de Solicitação"], selected_tipos)]
-
-            # Considera apenas quem esta na distribuicao; usuarios divergentes
-            # (de outras equipes) sao desconsiderados.
-            df_e = df_e[df_e[col_enc].map(norm_login).isin(LOGINS_EQUIPE)]
-
-            # Conta por Data Encerramento (pre-selecionado: hoje), nunca Data
-            # Pedido. Regra: tem Data Encerramento no dia selecionado = encerrada.
-            col_data_enc = _col_data_encerramento(df_e)
-            if col_data_enc is not None:
-                df_e = df_e.assign(
-                    _data_enc=pd.to_datetime(df_e[col_data_enc], errors="coerce"))
-                dia_sel = st.date_input(
-                    "Data de encerramento",
-                    value=datetime.now(BR_TZ).date(),
-                    format="DD/MM/YYYY",
-                    key="enc_data_sel",
-                )
-                df_e = df_e[df_e["_data_enc"].dt.date == dia_sel]
-            else:
-                st.caption("Relatório sem coluna 'Data Encerramento'; exibindo todas as encerradas.")
-
-            if df_e.empty:
-                st.info("Nenhuma OS encerrada para os filtros selecionados.")
-            else:
-                enc_counts = df_e[col_enc].value_counts().sort_values(ascending=True)
+        # -----------------------------------------------------------------------
+        # Tab: Visao Geral (Top cidades + Ranking colaboradores)
+        # -----------------------------------------------------------------------
+        with tab_overview:
+            # Nota dos filtros ativos (dia + tipo + colaborador vindos do topo da tela)
+            filtros_ativos = []
+            if not is_todos:
+                filtros_ativos.append(selected_colab.split("(")[0].strip())
+            if selected_tipos:
+                filtros_ativos.append(selected_tipos[0] if len(selected_tipos) == 1
+                                      else f"{len(selected_tipos)} tipos de servico")
+            if selected_dia is not None:
+                filtros_ativos.append(selected_dia.strftime("%d/%m/%Y"))
+            if filtros_ativos:
                 st.markdown(
                     '<span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
-                    f'Total de encerradas: {fmt_int(enc_counts.sum())}</span>',
+                    'Filtrado por: ' + _esc(" · ".join(filtros_ativos)) + "</span>",
                     unsafe_allow_html=True,
                 )
-                fig_enc = go.Figure(go.Bar(
-                    x=enc_counts.values,
-                    y=enc_counts.index,
-                    orientation="h",
-                    text=enc_counts.values,
-                    textposition="outside",
-                    cliponaxis=False,
-                    textfont=dict(color="rgba(255,255,255,0.88)", size=12),
-                    marker=dict(color="#00D4AA", cornerradius=4),
-                    hovertemplate="<b>%{y}</b><br>%{x} encerradas<extra></extra>",
-                ))
-                estilo_grafico(
-                    fig_enc,
-                    margin=dict(l=0, r=40, t=10, b=10),
-                    height=max(300, 28 * len(enc_counts) + 40),
-                    xaxis=dict(visible=False),
-                    yaxis=dict(automargin=True, color="rgba(255,255,255,0.72)"),
-                    bargap=0.38,
-                )
-                st.plotly_chart(fig_enc, use_container_width=True,
-                                config={"displayModeBar": False}, key="adm_encerradas")
 
-    # -----------------------------------------------------------------------
-    # Tab: Cobertura de Ausencias
-    # -----------------------------------------------------------------------
-    with tab_absence:
-        st.markdown(panel_header("Cobertura de Ausências", "users", variante="tab"),
-                    unsafe_allow_html=True)
-        st.caption("Selecione o colaborador ausente e defina o redirecionamento das OS.")
+            col_chart1, col_chart2 = st.columns(2)
 
-        if not COLABORADORES_ZONAS:
-            st.info("Configure os colaboradores primeiro.")
-        else:
-            absence = load_absence_config()
-            all_collabs = list(COLABORADORES_ZONAS.keys())
-
-            col_a1, col_a2 = st.columns(2)
-
-            with col_a1:
-                st.markdown("**Registrar Ausencia**")
-                absent_colab = st.selectbox("Colaborador ausente", all_collabs, key="absent_select")
-                redirect_mode = st.radio(
-                    "Redirecionamento",
-                    ["Redirecionar para colega especifico", "Distribuir para todos"],
-                    key="redirect_mode",
-                )
-
-                target_colab = None
-                if redirect_mode == "Redirecionar para colega especifico":
-                    available = [c for c in all_collabs if c != absent_colab]
-                    target_colab = st.selectbox("Redirecionar para", available, key="target_select")
-
-                # Dias (Data Tramite) das OS do ausente que serao redistribuidas.
-                # Vazio = todos os dias. Os dias nao escolhidos ficam com ele.
-                # Segue o filtro Tipo de Servico da sidebar: so as OS desses
-                # tipos aparecem aqui e so elas sao redistribuidas.
-                codigos_df, _ = serie_codigos(df)
-                exclusivos_aus = [c for c, d in CODIGOS_EXCLUSIVOS.items() if d == absent_colab]
-                do_ausente = (df["Zona Ligacao"].isin(zonas_do_colaborador(absent_colab))
-                              | codigos_df.isin(exclusivos_aus)) & _dos_tipos(df, selected_tipos)
-                qtd_por_dia = (df.loc[do_ausente, "Data Tramite"].dropna().dt.date
-                               .value_counts().sort_index())
-                dias_escolhidos = st.multiselect(
-                    "Dias a redistribuir (Data Trâmite)",
-                    list(qtd_por_dia.index),
-                    format_func=lambda d: f"{d.strftime('%d/%m/%Y')} ({qtd_por_dia[d]} OS)",
-                    placeholder="Todos os dias",
-                    key=f"absent_dias_{absent_colab}_{'|'.join(selected_tipos)}",
-                )
-                if selected_tipos:
-                    st.caption("Só as OS do filtro Tipo de Serviço serão redistribuídas: "
-                               + ", ".join(selected_tipos))
-
-                if st.button("Confirmar Ausencia", key="btn_confirm_absence", use_container_width=True):
-                    config = {
-                        "redirect_to": target_colab if redirect_mode == "Redirecionar para colega especifico" else None,
-                        "distribute_all": redirect_mode == "Distribuir para todos",
-                        "dias": [d.isoformat() for d in dias_escolhidos],
-                        "tipos": list(selected_tipos),
-                        "registered_at": datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M:%S"),
-                    }
-                    absence[absent_colab] = config
-                    save_absence_config(absence)
-                    limpar_redistribuicao(absent_colab)  # nova ausencia: reparte do zero
-                    add_audit_entry(absent_colab, f"ausencia_registrada -> {target_colab or 'todos'}")
-                    st.success(f"Ausencia de {absent_colab} registrada!")
-                    st.rerun()
-
-            with col_a2:
-                st.markdown("**Ausencias Ativas**")
-                if absence:
-                    for colab, info in absence.items():
-                        dest = info.get("redirect_to", "Todos")
-                        if info.get("distribute_all"):
-                            dest = "Distribuido para todos"
-                        registered = info.get("registered_at", "")
-                        dias_cfg = sorted(info.get("dias") or [])
-                        dias_txt = (", ".join(datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m")
-                                              for d in dias_cfg)
-                                    if dias_cfg else "Todos os dias")
-                        tipos_txt = _esc(", ".join(info.get("tipos") or [])) or "Todos os tipos"
-
-                        st.markdown(f"""
-                        <div style="background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.2);
-                                    border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-                            <div style="color: #FF6B6B; font-weight: 600;">{colab}</div>
-                            <div style="color: rgba(255,255,255,0.5); font-size: 12px;">
-                                Redirecionado para: {dest}<br>
-                                Dias redistribuídos: {dias_txt}<br>
-                                Tipos redistribuídos: {tipos_txt}<br>
-                                Registrado em: {registered}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    st.markdown("")
-                    remove_colab = st.selectbox("Remover ausencia de", list(absence.keys()), key="remove_abs")
-                    if st.button("Remover Ausencia", key="btn_remove_absence", use_container_width=True):
-                        del absence[remove_colab]
-                        save_absence_config(absence)
-                        limpar_redistribuicao(remove_colab)
-                        add_audit_entry(remove_colab, "ausencia_removida")
-                        st.success(f"Ausencia de {remove_colab} removida!")
-                        st.rerun()
+            with col_chart1:
+                st.markdown(panel_header("Top 15 Cidades com Mais OS Pendente", "building",
+                                         "Top 15", variante="card"), unsafe_allow_html=True)
+                # df_dia ja carrega dia + tipo + colaborador selecionados no topo
+                if "Zona Ligacao" in df_dia.columns and not df_dia.empty:
+                    df_city = df_dia.copy()
+                    df_city["Cidade"] = df_city["Zona Ligacao"].map(ZONA_CIDADE)
+                    city_counts = df_city["Cidade"].dropna().value_counts().head(15)
+                    if not city_counts.empty:
+                        # Barras no padrao do Tipo de Servico, em vermelho
+                        st.markdown(barras_html(list(city_counts.items()), len(df_dia),
+                                                cor="#FF6B6B"),
+                                    unsafe_allow_html=True)
+                    else:
+                        st.info("Sem dados de cidade disponíveis.")
                 else:
-                    st.info("Nenhuma ausencia registrada.")
+                    st.info("Sem OS para os filtros selecionados.")
 
-    # -----------------------------------------------------------------------
-    # Tab: Historico / Auditoria
-    # -----------------------------------------------------------------------
-    with tab_audit:
-        st.markdown(panel_header("Histórico / Auditoria", "history", variante="tab"),
-                    unsafe_allow_html=True)
-        st.caption("Registro de todas as ações realizadas no sistema.")
+            with col_chart2:
+                # Ranking recalculado sobre o dia + tipo selecionados (todos os colaboradores)
+                dist_adm = distribute_os(df_mapa)
+                colab_os = {name: len(d) for name, d in dist_adm.items() if not d.empty}
+                colab_os = dict(sorted(colab_os.items(), key=lambda x: x[1], reverse=True))
+                values = list(colab_os.values())
+                st.markdown(panel_header("OS Pendente por Colaborador", "users",
+                                         f"{len(values)} colaboradores", variante="card"),
+                            unsafe_allow_html=True)
+                if values:
+                    # Barras no padrao do Tipo de Servico (laranja); com um
+                    # colaborador escolhido, so ele fica aceso
+                    itens = [(n.split("(")[0].strip(), q) for n, q in colab_os.items()]
+                    destaque = None if is_todos else selected_colab.split("(")[0].strip()
+                    st.markdown(barras_html(itens, sum(values), destaque=destaque),
+                                unsafe_allow_html=True)
+                else:
+                    st.info("Nenhuma OS para os filtros selecionados.")
 
-        audit_log = load_audit_log()
+        # -----------------------------------------------------------------------
+        # Tab: Encerradas (so existe quando o relatorio traz abertas + encerradas)
+        # -----------------------------------------------------------------------
+        with tab_encerradas:
+            st.markdown(panel_header("Solicitações Encerradas por Usuário", "check", variante="tab"),
+                        unsafe_allow_html=True)
 
-        if audit_log:
-            audit_df = pd.DataFrame(audit_log)
-            audit_df = audit_df.sort_values("timestamp", ascending=False)
+            df_enc = st.session_state.get("df_encerradas")
+            col_enc = st.session_state.get("col_encerramento")
 
-            # Filtros
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                filter_colab = st.multiselect(
-                    "Filtrar por colaborador",
-                    audit_df["colaborador"].unique().tolist(),
-                    key="filter_audit_colab",
-                )
-            with col_f2:
-                filter_action = st.multiselect(
-                    "Filtrar por acao",
-                    audit_df["action"].unique().tolist(),
-                    key="filter_audit_action",
-                )
+            if df_enc is None or df_enc.empty or col_enc is None:
+                st.info("Sem dados de encerradas. Carregue o relatório com OS em aberto "
+                        "e encerradas para ver este gráfico.")
+            else:
+                df_e = df_enc.copy()
+                if selected_tipos and "Tipo de Solicitação" in df_e.columns:
+                    df_e = df_e[mascara_tipos(df_e["Tipo de Solicitação"], selected_tipos)]
 
-            if filter_colab:
-                audit_df = audit_df[audit_df["colaborador"].isin(filter_colab)]
-            if filter_action:
-                audit_df = audit_df[audit_df["action"].isin(filter_action)]
+                # Considera apenas quem esta na distribuicao; usuarios divergentes
+                # (de outras equipes) sao desconsiderados.
+                df_e = df_e[df_e[col_enc].map(norm_login).isin(LOGINS_EQUIPE)]
 
-            st.markdown(f"""
-            <div style="margin-bottom: 12px; color: rgba(255,255,255,0.5); font-size: 13px;">
-                Total de registros: <strong style="color:#00C896">{len(audit_df)}</strong>
-            </div>
-            """, unsafe_allow_html=True)
+                # Conta por Data Encerramento (pre-selecionado: hoje), nunca Data
+                # Pedido. Regra: tem Data Encerramento no dia selecionado = encerrada.
+                col_data_enc = _col_data_encerramento(df_e)
+                if col_data_enc is not None:
+                    df_e = df_e.assign(
+                        _data_enc=pd.to_datetime(df_e[col_data_enc], errors="coerce"))
+                    dia_sel = st.date_input(
+                        "Data de encerramento",
+                        value=datetime.now(BR_TZ).date(),
+                        format="DD/MM/YYYY",
+                        key="enc_data_sel",
+                    )
+                    df_e = df_e[df_e["_data_enc"].dt.date == dia_sel]
+                else:
+                    st.caption("Relatório sem coluna 'Data Encerramento'; exibindo todas as encerradas.")
 
-            for _, row in audit_df.iterrows():
-                action_icon = "📥" if row["action"] == "download" else "🔄"
-                action_color = "#00C896" if row["action"] == "download" else "#FF9A2E"
+                if df_e.empty:
+                    st.info("Nenhuma OS encerrada para os filtros selecionados.")
+                else:
+                    enc_counts = df_e[col_enc].value_counts().sort_values(ascending=True)
+                    st.markdown(
+                        '<span class="hub-chip hub-chip--accent"><span class="hub-chip__dot"></span>'
+                        f'Total de encerradas: {fmt_int(enc_counts.sum())}</span>',
+                        unsafe_allow_html=True,
+                    )
+                    fig_enc = go.Figure(go.Bar(
+                        x=enc_counts.values,
+                        y=enc_counts.index,
+                        orientation="h",
+                        text=enc_counts.values,
+                        textposition="outside",
+                        cliponaxis=False,
+                        textfont=dict(color="rgba(255,255,255,0.88)", size=12),
+                        marker=dict(color="#00D4AA", cornerradius=4),
+                        hovertemplate="<b>%{y}</b><br>%{x} encerradas<extra></extra>",
+                    ))
+                    estilo_grafico(
+                        fig_enc,
+                        margin=dict(l=0, r=40, t=10, b=10),
+                        height=max(300, 28 * len(enc_counts) + 40),
+                        xaxis=dict(visible=False),
+                        yaxis=dict(automargin=True, color="rgba(255,255,255,0.72)"),
+                        bargap=0.38,
+                    )
+                    st.plotly_chart(fig_enc, use_container_width=True,
+                                    config={"displayModeBar": False}, key="adm_encerradas")
+
+        # -----------------------------------------------------------------------
+        # Tab: Cobertura de Ausencias
+        # -----------------------------------------------------------------------
+        with tab_absence:
+            st.markdown(panel_header("Cobertura de Ausências", "users", variante="tab"),
+                        unsafe_allow_html=True)
+            st.caption("Selecione o colaborador ausente e defina o redirecionamento das OS.")
+
+            if not COLABORADORES_ZONAS:
+                st.info("Configure os colaboradores primeiro.")
+            else:
+                absence = load_absence_config()
+                all_collabs = list(COLABORADORES_ZONAS.keys())
+
+                col_a1, col_a2 = st.columns(2)
+
+                with col_a1:
+                    st.markdown("**Registrar Ausencia**")
+                    absent_colab = st.selectbox("Colaborador ausente", all_collabs, key="absent_select")
+                    redirect_mode = st.radio(
+                        "Redirecionamento",
+                        ["Redirecionar para colega especifico", "Distribuir para todos"],
+                        key="redirect_mode",
+                    )
+
+                    target_colab = None
+                    if redirect_mode == "Redirecionar para colega especifico":
+                        available = [c for c in all_collabs if c != absent_colab]
+                        target_colab = st.selectbox("Redirecionar para", available, key="target_select")
+
+                    # Dias (Data Tramite) das OS do ausente que serao redistribuidas.
+                    # Vazio = todos os dias. Os dias nao escolhidos ficam com ele.
+                    # Segue o filtro Tipo de Servico da sidebar: so as OS desses
+                    # tipos aparecem aqui e so elas sao redistribuidas.
+                    codigos_df, _ = serie_codigos(df)
+                    exclusivos_aus = [c for c, d in CODIGOS_EXCLUSIVOS.items() if d == absent_colab]
+                    do_ausente = (df["Zona Ligacao"].isin(zonas_do_colaborador(absent_colab))
+                                  | codigos_df.isin(exclusivos_aus)) & _dos_tipos(df, selected_tipos)
+                    qtd_por_dia = (df.loc[do_ausente, "Data Tramite"].dropna().dt.date
+                                   .value_counts().sort_index())
+                    dias_escolhidos = st.multiselect(
+                        "Dias a redistribuir (Data Trâmite)",
+                        list(qtd_por_dia.index),
+                        format_func=lambda d: f"{d.strftime('%d/%m/%Y')} ({qtd_por_dia[d]} OS)",
+                        placeholder="Todos os dias",
+                        key=f"absent_dias_{absent_colab}_{'|'.join(selected_tipos)}",
+                    )
+                    if selected_tipos:
+                        st.caption("Só as OS do filtro Tipo de Serviço serão redistribuídas: "
+                                   + ", ".join(selected_tipos))
+
+                    if st.button("Confirmar Ausencia", key="btn_confirm_absence", use_container_width=True):
+                        config = {
+                            "redirect_to": target_colab if redirect_mode == "Redirecionar para colega especifico" else None,
+                            "distribute_all": redirect_mode == "Distribuir para todos",
+                            "dias": [d.isoformat() for d in dias_escolhidos],
+                            "tipos": list(selected_tipos),
+                            "registered_at": datetime.now(BR_TZ).strftime("%d/%m/%Y %H:%M:%S"),
+                        }
+                        absence[absent_colab] = config
+                        save_absence_config(absence)
+                        limpar_redistribuicao(absent_colab)  # nova ausencia: reparte do zero
+                        add_audit_entry(absent_colab, f"ausencia_registrada -> {target_colab or 'todos'}")
+                        st.success(f"Ausencia de {absent_colab} registrada!")
+                        st.rerun()
+
+                with col_a2:
+                    st.markdown("**Ausencias Ativas**")
+                    if absence:
+                        for colab, info in absence.items():
+                            dest = info.get("redirect_to", "Todos")
+                            if info.get("distribute_all"):
+                                dest = "Distribuido para todos"
+                            registered = info.get("registered_at", "")
+                            dias_cfg = sorted(info.get("dias") or [])
+                            dias_txt = (", ".join(datetime.strptime(d, "%Y-%m-%d").strftime("%d/%m")
+                                                  for d in dias_cfg)
+                                        if dias_cfg else "Todos os dias")
+                            tipos_txt = _esc(", ".join(info.get("tipos") or [])) or "Todos os tipos"
+
+                            st.markdown(f"""
+                            <div style="background: rgba(255,77,77,0.08); border: 1px solid rgba(255,77,77,0.2);
+                                        border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                                <div style="color: #FF6B6B; font-weight: 600;">{colab}</div>
+                                <div style="color: rgba(255,255,255,0.5); font-size: 12px;">
+                                    Redirecionado para: {dest}<br>
+                                    Dias redistribuídos: {dias_txt}<br>
+                                    Tipos redistribuídos: {tipos_txt}<br>
+                                    Registrado em: {registered}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        st.markdown("")
+                        remove_colab = st.selectbox("Remover ausencia de", list(absence.keys()), key="remove_abs")
+                        if st.button("Remover Ausencia", key="btn_remove_absence", use_container_width=True):
+                            del absence[remove_colab]
+                            save_absence_config(absence)
+                            limpar_redistribuicao(remove_colab)
+                            add_audit_entry(remove_colab, "ausencia_removida")
+                            st.success(f"Ausencia de {remove_colab} removida!")
+                            st.rerun()
+                    else:
+                        st.info("Nenhuma ausencia registrada.")
+
+        # -----------------------------------------------------------------------
+        # Tab: Historico / Auditoria
+        # -----------------------------------------------------------------------
+        with tab_audit:
+            st.markdown(panel_header("Histórico / Auditoria", "history", variante="tab"),
+                        unsafe_allow_html=True)
+            st.caption("Registro de todas as ações realizadas no sistema.")
+
+            audit_log = load_audit_log()
+
+            if audit_log:
+                audit_df = pd.DataFrame(audit_log)
+                audit_df = audit_df.sort_values("timestamp", ascending=False)
+
+                # Filtros
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    filter_colab = st.multiselect(
+                        "Filtrar por colaborador",
+                        audit_df["colaborador"].unique().tolist(),
+                        key="filter_audit_colab",
+                    )
+                with col_f2:
+                    filter_action = st.multiselect(
+                        "Filtrar por acao",
+                        audit_df["action"].unique().tolist(),
+                        key="filter_audit_action",
+                    )
+
+                if filter_colab:
+                    audit_df = audit_df[audit_df["colaborador"].isin(filter_colab)]
+                if filter_action:
+                    audit_df = audit_df[audit_df["action"].isin(filter_action)]
+
                 st.markdown(f"""
-                <div style="background: rgba(19,29,53,0.6); border-radius: 8px; padding: 10px 16px;
-                            border: 1px solid rgba(255,255,255,0.04); margin-bottom: 6px;
-                            display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="margin-right: 8px;">{action_icon}</span>
-                        <span style="color: #FFFFFF; font-weight: 500;">{row['colaborador']}</span>
-                        <span style="color: {action_color}; font-size: 12px; margin-left: 8px;">{row['action']}</span>
-                    </div>
-                    <span style="color: rgba(255,255,255,0.4); font-size: 12px;">{row['timestamp']}</span>
+                <div style="margin-bottom: 12px; color: rgba(255,255,255,0.5); font-size: 13px;">
+                    Total de registros: <strong style="color:#00C896">{len(audit_df)}</strong>
                 </div>
                 """, unsafe_allow_html=True)
 
-            st.markdown("<div style='height: 10px'></div>", unsafe_allow_html=True)
-            if st.button("Limpar Historico", key="btn_clear_audit"):
-                save_audit_log([])
-                st.success("Historico limpo!")
-                st.rerun()
-        else:
-            st.info("Nenhum registro de auditoria ainda.")
+                for _, row in audit_df.iterrows():
+                    action_icon = "📥" if row["action"] == "download" else "🔄"
+                    action_color = "#00C896" if row["action"] == "download" else "#FF9A2E"
+                    st.markdown(f"""
+                    <div style="background: rgba(19,29,53,0.6); border-radius: 8px; padding: 10px 16px;
+                                border: 1px solid rgba(255,255,255,0.04); margin-bottom: 6px;
+                                display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="margin-right: 8px;">{action_icon}</span>
+                            <span style="color: #FFFFFF; font-weight: 500;">{row['colaborador']}</span>
+                            <span style="color: {action_color}; font-size: 12px; margin-left: 8px;">{row['action']}</span>
+                        </div>
+                        <span style="color: rgba(255,255,255,0.4); font-size: 12px;">{row['timestamp']}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.markdown("<div style='height: 10px'></div>", unsafe_allow_html=True)
+                if st.button("Limpar Historico", key="btn_clear_audit"):
+                    save_audit_log([])
+                    st.success("Historico limpo!")
+                    st.rerun()
+            else:
+                st.info("Nenhum registro de auditoria ainda.")
+
 
 # Fim da pagina: remove a tela de carregamento da primeira carga
 if tela_carregando is not None:
