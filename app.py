@@ -2190,27 +2190,10 @@ if st.session_state.is_admin:
                         f'Total de encerradas: {fmt_int(enc_counts.sum())}</span>',
                         unsafe_allow_html=True,
                     )
-                    fig_enc = go.Figure(go.Bar(
-                        x=enc_counts.values,
-                        y=enc_counts.index,
-                        orientation="h",
-                        text=enc_counts.values,
-                        textposition="outside",
-                        cliponaxis=False,
-                        textfont=dict(color="rgba(255,255,255,0.88)", size=12),
-                        marker=dict(color="#00D4AA", cornerradius=4),
-                        hovertemplate="<b>%{y}</b><br>%{x} encerradas<extra></extra>",
-                    ))
-                    estilo_grafico(
-                        fig_enc,
-                        margin=dict(l=0, r=40, t=10, b=10),
-                        height=max(300, 28 * len(enc_counts) + 40),
-                        xaxis=dict(visible=False),
-                        yaxis=dict(automargin=True, color="rgba(255,255,255,0.72)"),
-                        bargap=0.38,
-                    )
-                    st.plotly_chart(fig_enc, use_container_width=True,
-                                    config={"displayModeBar": False}, key="adm_encerradas")
+                    # Mesmo padrao de barras da Visao Geral, na cor original (#00D4AA)
+                    itens_enc = list(enc_counts.sort_values(ascending=False).items())
+                    st.markdown(barras_html(itens_enc, int(enc_counts.sum()), cor="#00D4AA"),
+                                unsafe_allow_html=True)
 
         # -----------------------------------------------------------------------
         # Tab: Cobertura de Ausencias
