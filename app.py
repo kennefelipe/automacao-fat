@@ -628,10 +628,10 @@ def colunas_visiveis(df):
 
 
 # ---------------------------------------------------------------------------
-# Faixas de atraso: dias em aberto = hoje - Data Tramite (mesma conta do TMAX).
-# Para mudar as faixas, edite os dois limites abaixo.
+# Faixas de atraso: dias em aberto = hoje - Data Tramite (mesma conta do TMAX;
+# o dia de hoje nao conta). Para mudar a faixa, edite o limite abaixo.
 # ---------------------------------------------------------------------------
-ATRASO_LIMITE = 5   # a partir de 5 dias em aberto: vermelho; menos de 5: verde
+ATRASO_LIMITE = 5   # ate 5 dias em aberto: verde; acima de 5: vermelho
 COR_ATRASO = {"verde": "#00D4AA", "vermelho": "#FF6B6B"}
 
 
@@ -646,14 +646,14 @@ def faixa_atraso(dias):
     """'verde' ou 'vermelho' conforme os dias em aberto (None se vazio)."""
     if dias is None or pd.isna(dias):
         return None
-    return "verde" if dias < ATRASO_LIMITE else "vermelho"
+    return "verde" if dias <= ATRASO_LIMITE else "vermelho"
 
 
 def legenda_atraso():
     """Legenda das faixas de atraso (bolinhas coloridas)."""
     itens = [
-        ("verde", f"até {ATRASO_LIMITE - 1} dias"),
-        ("vermelho", f"{ATRASO_LIMITE} dias ou mais"),
+        ("verde", f"até {ATRASO_LIMITE} dias"),
+        ("vermelho", f"acima de {ATRASO_LIMITE} dias"),
     ]
     partes = [
         '<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px">'
@@ -1895,7 +1895,7 @@ with tab_acomp:
             # area fazem um degrade de vermelho para verde.
             # Eixo x numerico (0, 1, 2...) com os rotulos dd/mm, para a curva
             # e o degrade poderem ser desenhados entre os dias.
-            atrasado = (dias_em_aberto(pd.to_datetime(os_dia_df["Data"])) >= ATRASO_LIMITE).tolist()
+            atrasado = (dias_em_aberto(pd.to_datetime(os_dia_df["Data"])) > ATRASO_LIMITE).tolist()
             n_verm = sum(atrasado)
             n_dias_graf = len(dias)
             verde, vermelho = COR_ATRASO["verde"], COR_ATRASO["vermelho"]
@@ -2050,7 +2050,7 @@ with tab_acomp:
 
     tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
     # OS na faixa vermelha (acima do limite) por tipo, para a marquinha na barra
-    vermelhas_tipo = (df_dia.loc[dias_em_aberto(df_dia["Data Tramite"]) >= ATRASO_LIMITE,
+    vermelhas_tipo = (df_dia.loc[dias_em_aberto(df_dia["Data Tramite"]) > ATRASO_LIMITE,
                                  "Tipo de Solicitação"].value_counts())
     max_count = tipo_counts.max() if not tipo_counts.empty else 1
 
@@ -2113,7 +2113,7 @@ with tab_acomp:
                         '<div class="hub-bar__row">'
                         f'<span class="hub-bar__name">{_esc(str(tipo))}</span>'
                         '<span class="hub-bar__val">'
-                        + (f'<span title="OS com {ATRASO_LIMITE} dias ou mais em aberto" '
+                        + (f'<span title="OS com mais de {ATRASO_LIMITE} dias em aberto" '
                            f'style="color:{COR_ATRASO["vermelho"]};font-weight:700;margin-right:10px">'
                            f'● {fmt_int(vermelhas_tipo.get(tipo, 0))}</span>'
                            if vermelhas_tipo.get(tipo, 0) else '')
@@ -2129,7 +2129,7 @@ with tab_acomp:
                 st.markdown(
                     '<div style="font-size:12px;color:rgba(255,255,255,0.62);margin-top:6px">'
                     f'<span style="color:{COR_ATRASO["vermelho"]};font-weight:700">●</span> '
-                    f'OS com {ATRASO_LIMITE} dias ou mais em aberto</div>',
+                    f'OS com mais de {ATRASO_LIMITE} dias em aberto</div>',
                     unsafe_allow_html=True,
                 )
 
