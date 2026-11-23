@@ -664,6 +664,43 @@ def legenda_atraso():
             + "".join(partes) + "</div>")
 
 
+def curva_suave(ys, passos=24):
+    """Pontos de uma curva suave (Catmull-Rom) passando por (0, y0), (1, y1)...
+
+    Usada no grafico do Tramite no lugar do spline do Plotly, para a linha
+    poder ser pintada em pedacos (degrade de cor) sem mudar o formato.
+    """
+    n = len(ys)
+    if n < 2:
+        return [0.0] * n, [float(y) for y in ys]
+    xs_out, ys_out = [], []
+    for i in range(n - 1):
+        p0 = ys[i - 1] if i > 0 else ys[i]
+        p1, p2 = ys[i], ys[i + 1]
+        p3 = ys[i + 2] if i + 2 < n else ys[i + 1]
+        for k in range(passos):
+            t = k / passos
+            y = 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t ** 2
+                       + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3)
+            xs_out.append(i + t)
+            ys_out.append(y)
+    xs_out.append(float(n - 1))
+    ys_out.append(float(ys[-1]))
+    return xs_out, ys_out
+
+
+def _hex_rgb(cor):
+    cor = cor.lstrip("#")
+    return tuple(int(cor[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def mistura_cor(cor_a, cor_b, t, alfa=1.0):
+    """Cor entre cor_a (t=0) e cor_b (t=1), como rgba."""
+    a, b = _hex_rgb(cor_a), _hex_rgb(cor_b)
+    r, g, bl = (round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+    return f"rgba({r},{g},{bl},{alfa})"
+
+
 def estilo_celula_atraso(dias):
     """Estilo da coluna 'Dias em aberto' na tabela de Detalhamento."""
     cor = COR_ATRASO.get(faixa_atraso(dias))
@@ -1844,7 +1881,7 @@ with tab_acomp:
             # A figura nao pode depender da selecao: se mudar a cada rerun, o
             # Streamlit zera a selecao e o filtro por dia deixa de funcionar.
             fig_os_dia.add_trace(go.Bar(
-                x=dias,
+                x=list(range(len(dias))),
                 y=[topo * 0.96 - piso] * len(dias),
                 base=piso,
                 marker=dict(color="#00D4AA", opacity=0),
@@ -1852,64 +1889,86 @@ with tab_acomp:
                 showlegend=False,
             ))
 
-            # Dias acima do limite de atraso: linha, area e pontos em vermelho.
-            # Os dias vem em ordem (mais antigo a esquerda), entao os atrasados
-            # ficam no comeco. O trecho vermelho vai ate o primeiro dia verde,
-            # para a linha nao ficar com buraco na virada de cor.
+            # Dias acima do limite de atraso em vermelho, o resto em verde. Os dias
+            # vem em ordem (mais antigo a esquerda), entao os atrasados ficam no
+            # comeco. Entre o ultimo dia vermelho e o primeiro verde a linha e a
+            # area fazem um degrade de vermelho para verde.
+            # Eixo x numerico (0, 1, 2...) com os rotulos dd/mm, para a curva
+            # e o degrade poderem ser desenhados entre os dias.
             atrasado = (dias_em_aberto(pd.to_datetime(os_dia_df["Data"])) > ATRASO_LIMITE).tolist()
             n_verm = sum(atrasado)
-            hover_txt = ("<b>%{x}</b><br>%{y} OS em aberto"
-                         "<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>")
+            n_dias_graf = len(dias)
+            verde, vermelho = COR_ATRASO["verde"], COR_ATRASO["vermelho"]
 
-            def trecho(ini, fim, cor, rgb, cores_pontos, rotulos):
-                """Linha + area + pontos de um trecho do grafico, numa cor."""
-                linha = dict(
-                    x=dias.iloc[ini:fim],
-                    y=qtd.iloc[ini:fim],
-                    mode="lines+markers+text",
-                    line=dict(color=cor, width=2.5, shape="spline", smoothing=0.6),
-                    marker=dict(size=10, color=cores_pontos, line=dict(color="#0A1628", width=2)),
-                    text=rotulos,
-                    textposition="top center",
-                    cliponaxis=False,
-                    textfont=dict(color="rgba(255,255,255,0.92)", size=12),
-                    fill="tozeroy",
-                    hoverinfo="skip",
-                    selected=dict(marker=dict(size=15, color="#FFFFFF")),
-                    unselected=dict(marker=dict(opacity=1), textfont=dict(color="rgba(255,255,255,0.92)")),
-                    showlegend=False,
-                )
+            def posicao_cor(x):
+                """0 = vermelho, 1 = verde, entre os dois = degrade."""
+                if n_verm == 0:
+                    return 1.0
+                if n_verm >= n_dias_graf:
+                    return 0.0
+                return min(1.0, max(0.0, x - (n_verm - 1)))
+
+            curva_x, curva_y = curva_suave(qtd.tolist())
+
+            # Area: degrade horizontal vermelho -> verde (+ escurecimento embaixo)
+            if n_dias_graf > 1:
+                ini_deg = (n_verm - 1) / (n_dias_graf - 1) if n_verm else 0.0
+                fim_deg = n_verm / (n_dias_graf - 1) if n_verm < n_dias_graf else 1.0
+                ini_deg, fim_deg = max(0.0, ini_deg), min(1.0, fim_deg)
+                if n_verm == 0:
+                    escala = [[0, mistura_cor(verde, verde, 0, 0.30)], [1, mistura_cor(verde, verde, 0, 0.30)]]
+                elif n_verm >= n_dias_graf:
+                    escala = [[0, mistura_cor(vermelho, vermelho, 0, 0.30)], [1, mistura_cor(vermelho, vermelho, 0, 0.30)]]
+                else:
+                    escala = [[0, mistura_cor(vermelho, vermelho, 0, 0.30)],
+                              [ini_deg, mistura_cor(vermelho, vermelho, 0, 0.30)],
+                              [fim_deg, mistura_cor(verde, verde, 0, 0.30)],
+                              [1, mistura_cor(verde, verde, 0, 0.30)]]
+                area = dict(x=curva_x, y=curva_y, mode="lines", line=dict(width=0),
+                            fill="tozeroy", hoverinfo="skip", showlegend=False)
                 try:
-                    fig_os_dia.add_trace(go.Scatter(**linha, fillgradient=dict(
+                    fig_os_dia.add_trace(go.Scatter(**area, fillgradient=dict(
+                        type="horizontal", colorscale=escala)))
+                    # Escurece a base da area (mesmo efeito de antes, sumindo embaixo)
+                    fig_os_dia.add_trace(go.Scatter(**area, fillgradient=dict(
                         type="vertical",
-                        colorscale=[[0, f"rgba({rgb},0)"], [1, f"rgba({rgb},0.32)"]],
+                        colorscale=[[0, "rgba(11,26,54,0.75)"], [1, "rgba(11,26,54,0)"]],
                     )))
                 except ValueError:  # Plotly antigo sem fillgradient
-                    fig_os_dia.add_trace(go.Scatter(**linha, fillcolor=f"rgba({rgb},0.14)"))
+                    fig_os_dia.add_trace(go.Scatter(**area, fillcolor="rgba(0,212,170,0.14)"))
 
-            verde, vermelho = COR_ATRASO["verde"], COR_ATRASO["vermelho"]
-            if n_verm:
-                fim_verm = min(n_verm + 1, len(dias))  # inclui o 1o dia verde (emenda)
-                rotulos = qtd.iloc[:fim_verm].astype(str).tolist()
-                cores = [vermelho] * n_verm
-                if fim_verm > n_verm:
-                    rotulos[-1] = ""  # o rotulo da emenda fica com o trecho verde
-                    cores.append(verde)
-                trecho(0, fim_verm, vermelho, "255,107,107", cores, rotulos)
-            if n_verm < len(dias):
-                trecho(n_verm, len(dias), verde, "0,212,170",
-                       [verde] * (len(dias) - n_verm), qtd.iloc[n_verm:])
+            # Linha: pedacos curtos, cada um na cor da sua posicao (degrade na virada)
+            passo_linha = 3
+            pedacos = []  # [cor, inicio, fim] nos pontos da curva
+            for i in range(0, max(len(curva_x) - 1, 0), passo_linha):
+                fim = min(i + passo_linha, len(curva_x) - 1)
+                cor = mistura_cor(vermelho, verde, posicao_cor((curva_x[i] + curva_x[fim]) / 2))
+                if pedacos and pedacos[-1][0] == cor:
+                    pedacos[-1][2] = fim
+                else:
+                    pedacos.append([cor, i, fim])
+            for cor, ini, fim in pedacos:
+                fig_os_dia.add_trace(go.Scatter(
+                    x=curva_x[ini:fim + 1], y=curva_y[ini:fim + 1], mode="lines",
+                    line=dict(color=cor, width=2.5), hoverinfo="skip", showlegend=False,
+                ))
 
-            # Pontos invisiveis com o tooltip e o clique de cada dia (os trechos
-            # acima nao tem tooltip, para a emenda nao aparecer duas vezes)
+            # Pontos de cada dia: cor da faixa, valor em cima, tooltip e clique
             fig_os_dia.add_trace(go.Scatter(
-                x=dias,
+                x=list(range(n_dias_graf)),
                 y=qtd,
-                mode="markers",
-                marker=dict(size=14, color="#FFFFFF", opacity=0),
-                hovertemplate=hover_txt,
-                selected=dict(marker=dict(size=15, color="#FFFFFF", opacity=1)),
-                unselected=dict(marker=dict(opacity=0)),
+                customdata=dias,
+                mode="markers+text",
+                marker=dict(size=10, color=[vermelho if a else verde for a in atrasado],
+                            line=dict(color="#0A1628", width=2)),
+                text=qtd,
+                textposition="top center",
+                cliponaxis=False,
+                textfont=dict(color="rgba(255,255,255,0.92)", size=12),
+                hovertemplate=("<b>%{customdata}</b><br>%{y} OS em aberto"
+                               "<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>"),
+                selected=dict(marker=dict(size=15, color="#FFFFFF")),
+                unselected=dict(marker=dict(opacity=1), textfont=dict(color="rgba(255,255,255,0.92)")),
                 showlegend=False,
             ))
 
@@ -1920,6 +1979,10 @@ with tab_acomp:
                 hovermode="x",
                 bargap=0.18,
                 xaxis=dict(
+                    tickmode="array",
+                    tickvals=list(range(len(dias))),
+                    ticktext=dias.tolist(),
+                    range=[-0.5, len(dias) - 0.5],
                     color="rgba(255,255,255,0.55)",
                     tickfont=dict(size=12),
                     showgrid=False,
@@ -1952,11 +2015,14 @@ with tab_acomp:
             st.markdown(legenda_atraso(), unsafe_allow_html=True)
 
             if event and hasattr(event, "selection") and event.selection and event.selection.points:
-                clicked_fmt = event.selection.points[0].get("x")
-                if clicked_fmt:
-                    match = os_dia_df[os_dia_df["Data_fmt"] == clicked_fmt]
-                    if not match.empty:
-                        selected_dia = match.iloc[0]["Data"]
+                clicado = event.selection.points[0].get("x")
+                # x do clique e a posicao do dia no eixo (0, 1, 2...)
+                try:
+                    pos = int(round(float(clicado)))
+                except (TypeError, ValueError):
+                    pos = None
+                if pos is not None and 0 <= pos < len(os_dia_df):
+                    selected_dia = os_dia_df.iloc[pos]["Data"]
 
     # ---------------------------------------------------------------------------
     # Filtro por dia (aplicado nas secoes abaixo)
