@@ -631,9 +631,8 @@ def colunas_visiveis(df):
 # Faixas de atraso: dias em aberto = hoje - Data Tramite (mesma conta do TMAX).
 # Para mudar as faixas, edite os dois limites abaixo.
 # ---------------------------------------------------------------------------
-ATRASO_LIMITE_VERDE = 5      # ate 5 dias em aberto: verde
-ATRASO_LIMITE_LARANJA = 10   # de 6 a 10 dias: laranja; acima de 10: vermelho
-COR_ATRASO = {"verde": "#00D4AA", "laranja": "#FFA94D", "vermelho": "#FF6B6B"}
+ATRASO_LIMITE = 5   # ate 5 dias em aberto: verde; acima de 5: vermelho
+COR_ATRASO = {"verde": "#00D4AA", "vermelho": "#FF6B6B"}
 
 
 def dias_em_aberto(datas):
@@ -644,22 +643,17 @@ def dias_em_aberto(datas):
 
 
 def faixa_atraso(dias):
-    """'verde', 'laranja' ou 'vermelho' conforme os dias em aberto (None se vazio)."""
+    """'verde' ou 'vermelho' conforme os dias em aberto (None se vazio)."""
     if dias is None or pd.isna(dias):
         return None
-    if dias <= ATRASO_LIMITE_VERDE:
-        return "verde"
-    if dias <= ATRASO_LIMITE_LARANJA:
-        return "laranja"
-    return "vermelho"
+    return "verde" if dias <= ATRASO_LIMITE else "vermelho"
 
 
 def legenda_atraso():
     """Legenda das faixas de atraso (bolinhas coloridas)."""
     itens = [
-        ("verde", f"até {ATRASO_LIMITE_VERDE} dias"),
-        ("laranja", f"{ATRASO_LIMITE_VERDE + 1} a {ATRASO_LIMITE_LARANJA} dias"),
-        ("vermelho", f"acima de {ATRASO_LIMITE_LARANJA} dias"),
+        ("verde", f"até {ATRASO_LIMITE} dias"),
+        ("vermelho", f"acima de {ATRASO_LIMITE} dias"),
     ]
     partes = [
         '<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px">'
@@ -1858,32 +1852,66 @@ with tab_acomp:
                 showlegend=False,
             ))
 
-            # Cor de cada ponto pela faixa de atraso daquele dia
-            cores_pontos = [COR_ATRASO[faixa_atraso(d)] for d in
-                            dias_em_aberto(pd.to_datetime(os_dia_df["Data"]))]
-            linha = dict(
+            # Dias acima do limite de atraso: linha, area e pontos em vermelho.
+            # Os dias vem em ordem (mais antigo a esquerda), entao os atrasados
+            # ficam no comeco. O trecho vermelho vai ate o primeiro dia verde,
+            # para a linha nao ficar com buraco na virada de cor.
+            atrasado = (dias_em_aberto(pd.to_datetime(os_dia_df["Data"])) > ATRASO_LIMITE).tolist()
+            n_verm = sum(atrasado)
+            hover_txt = ("<b>%{x}</b><br>%{y} OS em aberto"
+                         "<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>")
+
+            def trecho(ini, fim, cor, rgb, cores_pontos, rotulos):
+                """Linha + area + pontos de um trecho do grafico, numa cor."""
+                linha = dict(
+                    x=dias.iloc[ini:fim],
+                    y=qtd.iloc[ini:fim],
+                    mode="lines+markers+text",
+                    line=dict(color=cor, width=2.5, shape="spline", smoothing=0.6),
+                    marker=dict(size=10, color=cores_pontos, line=dict(color="#0A1628", width=2)),
+                    text=rotulos,
+                    textposition="top center",
+                    cliponaxis=False,
+                    textfont=dict(color="rgba(255,255,255,0.92)", size=12),
+                    fill="tozeroy",
+                    hoverinfo="skip",
+                    selected=dict(marker=dict(size=15, color="#FFFFFF")),
+                    unselected=dict(marker=dict(opacity=1), textfont=dict(color="rgba(255,255,255,0.92)")),
+                    showlegend=False,
+                )
+                try:
+                    fig_os_dia.add_trace(go.Scatter(**linha, fillgradient=dict(
+                        type="vertical",
+                        colorscale=[[0, f"rgba({rgb},0)"], [1, f"rgba({rgb},0.32)"]],
+                    )))
+                except ValueError:  # Plotly antigo sem fillgradient
+                    fig_os_dia.add_trace(go.Scatter(**linha, fillcolor=f"rgba({rgb},0.14)"))
+
+            verde, vermelho = COR_ATRASO["verde"], COR_ATRASO["vermelho"]
+            if n_verm:
+                fim_verm = min(n_verm + 1, len(dias))  # inclui o 1o dia verde (emenda)
+                rotulos = qtd.iloc[:fim_verm].astype(str).tolist()
+                cores = [vermelho] * n_verm
+                if fim_verm > n_verm:
+                    rotulos[-1] = ""  # o rotulo da emenda fica com o trecho verde
+                    cores.append(verde)
+                trecho(0, fim_verm, vermelho, "255,107,107", cores, rotulos)
+            if n_verm < len(dias):
+                trecho(n_verm, len(dias), verde, "0,212,170",
+                       [verde] * (len(dias) - n_verm), qtd.iloc[n_verm:])
+
+            # Pontos invisiveis com o tooltip e o clique de cada dia (os trechos
+            # acima nao tem tooltip, para a emenda nao aparecer duas vezes)
+            fig_os_dia.add_trace(go.Scatter(
                 x=dias,
                 y=qtd,
-                mode="lines+markers+text",
-                line=dict(color="#00D4AA", width=2.5, shape="spline", smoothing=0.6),
-                marker=dict(size=10, color=cores_pontos, line=dict(color="#0A1628", width=2)),
-                text=qtd,
-                textposition="top center",
-                cliponaxis=False,
-                textfont=dict(color="rgba(255,255,255,0.92)", size=12),
-                fill="tozeroy",
-                hovertemplate="<b>%{x}</b><br>%{y} OS em aberto<br><span style='color:#9fb3cc'>Clique para filtrar</span><extra></extra>",
-                selected=dict(marker=dict(size=15, color="#FFFFFF")),
-                unselected=dict(marker=dict(opacity=1), textfont=dict(color="rgba(255,255,255,0.92)")),
+                mode="markers",
+                marker=dict(size=14, color="#FFFFFF", opacity=0),
+                hovertemplate=hover_txt,
+                selected=dict(marker=dict(size=15, color="#FFFFFF", opacity=1)),
+                unselected=dict(marker=dict(opacity=0)),
                 showlegend=False,
-            )
-            try:
-                fig_os_dia.add_trace(go.Scatter(**linha, fillgradient=dict(
-                    type="vertical",
-                    colorscale=[[0, "rgba(0,212,170,0)"], [1, "rgba(0,212,170,0.32)"]],
-                )))
-            except ValueError:  # Plotly antigo sem fillgradient
-                fig_os_dia.add_trace(go.Scatter(**linha, fillcolor="rgba(0,212,170,0.14)"))
+            ))
 
             estilo_grafico(
                 fig_os_dia,
@@ -1955,8 +1983,8 @@ with tab_acomp:
         titulo_tipo += " — " + selected_dia.strftime("%d/%m/%Y")
 
     tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
-    # OS acima do limite laranja (faixa vermelha) por tipo, para a marquinha na barra
-    vermelhas_tipo = (df_dia.loc[dias_em_aberto(df_dia["Data Tramite"]) > ATRASO_LIMITE_LARANJA,
+    # OS na faixa vermelha (acima do limite) por tipo, para a marquinha na barra
+    vermelhas_tipo = (df_dia.loc[dias_em_aberto(df_dia["Data Tramite"]) > ATRASO_LIMITE,
                                  "Tipo de Solicitação"].value_counts())
     max_count = tipo_counts.max() if not tipo_counts.empty else 1
 
@@ -2019,7 +2047,7 @@ with tab_acomp:
                         '<div class="hub-bar__row">'
                         f'<span class="hub-bar__name">{_esc(str(tipo))}</span>'
                         '<span class="hub-bar__val">'
-                        + (f'<span title="OS com mais de {ATRASO_LIMITE_LARANJA} dias em aberto" '
+                        + (f'<span title="OS com mais de {ATRASO_LIMITE} dias em aberto" '
                            f'style="color:{COR_ATRASO["vermelho"]};font-weight:700;margin-right:10px">'
                            f'● {fmt_int(vermelhas_tipo.get(tipo, 0))}</span>'
                            if vermelhas_tipo.get(tipo, 0) else '')
@@ -2035,7 +2063,7 @@ with tab_acomp:
                 st.markdown(
                     '<div style="font-size:12px;color:rgba(255,255,255,0.62);margin-top:6px">'
                     f'<span style="color:{COR_ATRASO["vermelho"]};font-weight:700">●</span> '
-                    f'OS com mais de {ATRASO_LIMITE_LARANJA} dias em aberto</div>',
+                    f'OS com mais de {ATRASO_LIMITE} dias em aberto</div>',
                     unsafe_allow_html=True,
                 )
 
