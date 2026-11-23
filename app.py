@@ -1236,6 +1236,13 @@ def load_logo_centralizada_no_c(path: str, altura_ae: float = 0.25):
     except Exception:
         return None
 
+def filtrar_tipo_pelo_grafico(tipo):
+    """Clique numa barra de 'Distribuicao por Tipo de Servico': filtra so esse
+    tipo na sidebar. Se o filtro ja era so esse tipo, limpa (volta a 'Todos')."""
+    atual = st.session_state.get("tipo_multiselect", [])
+    st.session_state["tipo_multiselect"] = [] if atual == [tipo] else [tipo]
+
+
 # ---------------------------------------------------------------------------
 # Tela de carregamento (entre a tela inicial e a distribuicao)
 # ---------------------------------------------------------------------------
@@ -1897,32 +1904,76 @@ with tab_acomp:
     with st.container(key="hub-panel-tipos"):
         n_tipos = len(tipo_counts)
         st.markdown(panel_header(
-            titulo_tipo, "layers", f"{n_tipos} tipo{'s' if n_tipos != 1 else ''}",
+            titulo_tipo, "layers",
+            f"{n_tipos} tipo{'s' if n_tipos != 1 else ''} · clique para filtrar",
         ), unsafe_allow_html=True)
 
         if tipo_counts.empty:
             st.caption("Nenhuma OS para esta data.")
         else:
-            barras = []
+            # Cada barra e clicavel: um botao invisivel por cima dela aplica o
+            # tipo no filtro "Tipo de Servico" da sidebar (clicar de novo limpa).
+            st.markdown(
+                """
+                <style>
+                [class*="st-key-hub_tipo_bar_"] {
+                    position: relative;
+                    gap: 0;
+                }
+                [class*="st-key-hub_tipo_bar_"] [data-testid="stElementContainer"]:has([data-testid="stButton"]) {
+                    position: absolute;
+                    inset: 0;
+                    width: 100% !important;
+                    height: 100% !important;
+                    z-index: 2;
+                }
+                [class*="st-key-hub_tipo_bar_"] [data-testid="stButton"],
+                [class*="st-key-hub_tipo_bar_"] [data-testid="stButton"] > div {
+                    width: 100% !important;
+                    height: 100% !important;
+                }
+                [class*="st-key-hub_tipo_bar_"] [data-testid="stButton"] button {
+                    width: 100% !important;
+                    height: 100% !important;
+                    min-height: 0 !important;
+                    padding: 0 !important;
+                    display: block !important;
+                    opacity: 0;
+                    cursor: pointer;
+                }
+                [class*="st-key-hub_tipo_bar_"]:hover .hub-bar {
+                    filter: brightness(1.15);
+                }
+                [class*="st-key-hub_tipo_bar_"]:hover .hub-bar__name {
+                    color: #FFFFFF;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
             for i, (tipo, count) in enumerate(tipo_counts.items()):
                 pct = (count / total_filtrado) * 100 if total_filtrado > 0 else 0
                 bar_width = (count / max_count) * 100
-                barras.append(
-                    f'<div class="hub-bar" style="--i:{i}">'
-                    '<div class="hub-bar__row">'
-                    f'<span class="hub-bar__name">{_esc(str(tipo))}</span>'
-                    f'<span class="hub-bar__val">{fmt_int(count)}<em>{pct:.1f}%</em></span>'
-                    '</div>'
-                    f'<div class="hub-bar__track"><div class="hub-bar__fill" style="width:{bar_width:.2f}%"></div></div>'
-                    '</div>'
-                )
-            st.markdown('<div class="hub-bars">' + "".join(barras) + "</div>",
-                        unsafe_allow_html=True)
+                with st.container(key=f"hub_tipo_bar_{i}"):
+                    st.markdown(
+                        f'<div class="hub-bars"><div class="hub-bar" style="--i:{i}">'
+                        '<div class="hub-bar__row">'
+                        f'<span class="hub-bar__name">{_esc(str(tipo))}</span>'
+                        f'<span class="hub-bar__val">{fmt_int(count)}<em>{pct:.1f}%</em></span>'
+                        '</div>'
+                        f'<div class="hub-bar__track"><div class="hub-bar__fill" style="width:{bar_width:.2f}%"></div></div>'
+                        '</div></div>',
+                        unsafe_allow_html=True,
+                    )
+                    st.button(f"Filtrar {tipo}", key=f"btn_tipo_bar_{i}",
+                              on_click=filtrar_tipo_pelo_grafico, args=(tipo,))
 
     # ---------------------------------------------------------------------------
     # Tabela e Download (colaborador selecionado OU dia selecionado)
     # ---------------------------------------------------------------------------
-    show_table = (not is_todos or selected_dia is not None) and not df_dia.empty
+    # Admin conectado ve a tabela e exporta sempre, mesmo com "Todos"
+    show_table = (not is_todos or selected_dia is not None
+                  or st.session_state.is_admin) and not df_dia.empty
 
     if show_table:
         with st.container(key="hub-panel-detalhe"):
