@@ -627,6 +627,57 @@ def colunas_visiveis(df):
     return cols
 
 
+# ---------------------------------------------------------------------------
+# Faixas de atraso: dias em aberto = hoje - Data Tramite (mesma conta do TMAX).
+# Para mudar as faixas, edite os dois limites abaixo.
+# ---------------------------------------------------------------------------
+ATRASO_LIMITE_VERDE = 5      # ate 5 dias em aberto: verde
+ATRASO_LIMITE_LARANJA = 10   # de 6 a 10 dias: laranja; acima de 10: vermelho
+COR_ATRASO = {"verde": "#00D4AA", "laranja": "#FFA94D", "vermelho": "#FF6B6B"}
+
+
+def dias_em_aberto(datas):
+    """Serie de dias em aberto (inteiro) a partir da Data Tramite; futuro = 0."""
+    hoje = pd.Timestamp(datetime.now(BR_TZ).date())
+    dias = (hoje - pd.to_datetime(datas, errors="coerce").dt.normalize()).dt.days
+    return dias.clip(lower=0)
+
+
+def faixa_atraso(dias):
+    """'verde', 'laranja' ou 'vermelho' conforme os dias em aberto (None se vazio)."""
+    if dias is None or pd.isna(dias):
+        return None
+    if dias <= ATRASO_LIMITE_VERDE:
+        return "verde"
+    if dias <= ATRASO_LIMITE_LARANJA:
+        return "laranja"
+    return "vermelho"
+
+
+def legenda_atraso():
+    """Legenda das faixas de atraso (bolinhas coloridas)."""
+    itens = [
+        ("verde", f"até {ATRASO_LIMITE_VERDE} dias"),
+        ("laranja", f"{ATRASO_LIMITE_VERDE + 1} a {ATRASO_LIMITE_LARANJA} dias"),
+        ("vermelho", f"acima de {ATRASO_LIMITE_LARANJA} dias"),
+    ]
+    partes = [
+        '<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px">'
+        f'<span style="width:9px;height:9px;border-radius:50%;background:{COR_ATRASO[f]}"></span>{t}</span>'
+        for f, t in itens
+    ]
+    return ('<div style="font-size:12px;color:rgba(255,255,255,0.62);margin:2px 0 4px 2px">'
+            + "".join(partes) + "</div>")
+
+
+def estilo_celula_atraso(dias):
+    """Estilo da coluna 'Dias em aberto' na tabela de Detalhamento."""
+    cor = COR_ATRASO.get(faixa_atraso(dias))
+    if not cor:
+        return ""
+    return f"color: {cor}; font-weight: 700; background-color: {cor}1F"
+
+
 def to_excel_download(df):
     """Exporta so as colunas da tela, na mesma ordem e ordenadas por tramite.
 
@@ -1807,12 +1858,15 @@ with tab_acomp:
                 showlegend=False,
             ))
 
+            # Cor de cada ponto pela faixa de atraso daquele dia
+            cores_pontos = [COR_ATRASO[faixa_atraso(d)] for d in
+                            dias_em_aberto(pd.to_datetime(os_dia_df["Data"]))]
             linha = dict(
                 x=dias,
                 y=qtd,
                 mode="lines+markers+text",
                 line=dict(color="#00D4AA", width=2.5, shape="spline", smoothing=0.6),
-                marker=dict(size=9, color="#00D4AA", line=dict(color="#0A1628", width=2)),
+                marker=dict(size=10, color=cores_pontos, line=dict(color="#0A1628", width=2)),
                 text=qtd,
                 textposition="top center",
                 cliponaxis=False,
@@ -1867,6 +1921,8 @@ with tab_acomp:
                 key=chart_key,
             )
 
+            st.markdown(legenda_atraso(), unsafe_allow_html=True)
+
             if event and hasattr(event, "selection") and event.selection and event.selection.points:
                 clicked_fmt = event.selection.points[0].get("x")
                 if clicked_fmt:
@@ -1899,6 +1955,9 @@ with tab_acomp:
         titulo_tipo += " — " + selected_dia.strftime("%d/%m/%Y")
 
     tipo_counts = df_dia["Tipo de Solicitação"].value_counts()
+    # OS acima do limite laranja (faixa vermelha) por tipo, para a marquinha na barra
+    vermelhas_tipo = (df_dia.loc[dias_em_aberto(df_dia["Data Tramite"]) > ATRASO_LIMITE_LARANJA,
+                                 "Tipo de Solicitação"].value_counts())
     max_count = tipo_counts.max() if not tipo_counts.empty else 1
 
     with st.container(key="hub-panel-tipos"):
@@ -1959,7 +2018,12 @@ with tab_acomp:
                         f'<div class="hub-bars"><div class="hub-bar" style="--i:{i}">'
                         '<div class="hub-bar__row">'
                         f'<span class="hub-bar__name">{_esc(str(tipo))}</span>'
-                        f'<span class="hub-bar__val">{fmt_int(count)}<em>{pct:.1f}%</em></span>'
+                        '<span class="hub-bar__val">'
+                        + (f'<span title="OS com mais de {ATRASO_LIMITE_LARANJA} dias em aberto" '
+                           f'style="color:{COR_ATRASO["vermelho"]};font-weight:700;margin-right:10px">'
+                           f'● {fmt_int(vermelhas_tipo.get(tipo, 0))}</span>'
+                           if vermelhas_tipo.get(tipo, 0) else '')
+                        + f'{fmt_int(count)}<em>{pct:.1f}%</em></span>'
                         '</div>'
                         f'<div class="hub-bar__track"><div class="hub-bar__fill" style="width:{bar_width:.2f}%"></div></div>'
                         '</div></div>',
@@ -1967,6 +2031,13 @@ with tab_acomp:
                     )
                     st.button(f"Filtrar {tipo}", key=f"btn_tipo_bar_{i}",
                               on_click=filtrar_tipo_pelo_grafico, args=(tipo,))
+            if len(vermelhas_tipo):
+                st.markdown(
+                    '<div style="font-size:12px;color:rgba(255,255,255,0.62);margin-top:6px">'
+                    f'<span style="color:{COR_ATRASO["vermelho"]};font-weight:700">●</span> '
+                    f'OS com mais de {ATRASO_LIMITE_LARANJA} dias em aberto</div>',
+                    unsafe_allow_html=True,
+                )
 
     # ---------------------------------------------------------------------------
     # Tabela e Download (colaborador selecionado OU dia selecionado)
@@ -1985,6 +2056,10 @@ with tab_acomp:
 
             available_cols = colunas_visiveis(df_dia)
             df_display = df_dia[available_cols].copy()
+            # Coluna "Dias em aberto" logo depois da Data Tramite, colorida pela faixa
+            if "Data Tramite" in df_display.columns:
+                df_display.insert(df_display.columns.get_loc("Data Tramite") + 1, "Dias em aberto",
+                                  dias_em_aberto(df_display["Data Tramite"]).astype("Int64"))
             df_display = df_display.sort_values("Data Tramite", ascending=True)
 
             st.markdown(panel_header(
@@ -1995,8 +2070,11 @@ with tab_acomp:
                 if col in df_display.columns:
                     df_display[col] = df_display[col].dt.strftime("%d/%m/%Y %H:%M")
 
+            tabela = df_display
+            if "Dias em aberto" in df_display.columns:
+                tabela = df_display.style.map(estilo_celula_atraso, subset=["Dias em aberto"])
             st.dataframe(
-                df_display,
+                tabela,
                 use_container_width=True,
                 height=min(38 + 4 * 35, 38 + len(df_display) * 35),
                 hide_index=True,
