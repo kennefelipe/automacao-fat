@@ -90,6 +90,30 @@ body:has([data-stale="true"]) .hub-loader {
 }
 @keyframes hubLoaderGira { to { transform: rotate(360deg); } }
 """
+# Card "ice" (cidade mais atrasada): estava branco solido; agora segue o vidro
+# com gradiente dos outros cards, num tom gelo/azul-claro.
+HUB_LOADER_CSS += """
+.hub-kpi.hub-kpi--ice {
+    background: linear-gradient(135deg, rgba(214, 230, 247, 0.30) 0%,
+                rgba(170, 195, 225, 0.12) 55%, rgba(120, 150, 190, 0.06) 100%) !important;
+    border: 1px solid rgba(214, 230, 247, 0.42) !important;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+.hub-kpi.hub-kpi--ice .hub-kpi__value,
+.hub-kpi.hub-kpi--ice .hub-kpi__city {
+    color: #FFFFFF !important;
+}
+.hub-kpi.hub-kpi--ice .hub-kpi__label {
+    color: rgba(255, 255, 255, 0.72) !important;
+}
+.hub-kpi.hub-kpi--ice .hub-kpi__icon {
+    color: #FFFFFF !important;
+    background: rgba(255, 255, 255, 0.14) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+}
+"""
 HUB_LOADER_HTML = ('<div class="hub-loader"><div class="hub-loader__card">'
                    '<div class="hub-loader__anel"></div>Carregando...</div></div>')
 # Na carga do relatorio (tela inicial e primeira distribuicao) a mini tela nao
@@ -650,18 +674,17 @@ def faixa_atraso(dias):
 
 
 def legenda_atraso():
-    """Legenda das faixas de atraso (bolinhas coloridas)."""
-    itens = [
-        ("verde", f"até {ATRASO_LIMITE} dias"),
-        ("vermelho", f"acima de {ATRASO_LIMITE} dias"),
-    ]
-    partes = [
-        '<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px">'
-        f'<span style="width:9px;height:9px;border-radius:50%;background:{COR_ATRASO[f]}"></span>{t}</span>'
-        for f, t in itens
-    ]
-    return ('<div style="font-size:12px;color:rgba(255,255,255,0.62);margin:2px 0 4px 2px">'
-            + "".join(partes) + "</div>")
+    """Legenda discreta das faixas de atraso: '> 5 dias' [degrade] '<= 5 dias',
+    alinhada a direita, no mesmo sentido do grafico (antigo a esquerda)."""
+    verm, verde = COR_ATRASO["vermelho"], COR_ATRASO["verde"]
+    return (
+        '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;'
+        'font-size:11px;letter-spacing:0.02em;color:rgba(255,255,255,0.45);margin:0 4px 2px 0">'
+        f'<span>acima de {ATRASO_LIMITE} dias</span>'
+        '<span style="width:44px;height:3px;border-radius:3px;'
+        f'background:linear-gradient(90deg,{verm},{verde})"></span>'
+        f'<span>até {ATRASO_LIMITE} dias</span></div>'
+    )
 
 
 def curva_suave(ys, passos=24):
