@@ -2115,7 +2115,7 @@ with tab_acomp:
                         '<span class="hub-bar__val">'
                         + (f'<span title="OS com mais de {ATRASO_LIMITE} dias em aberto" '
                            f'style="color:{COR_ATRASO["vermelho"]};font-weight:700;margin-right:10px">'
-                           f'● {fmt_int(vermelhas_tipo.get(tipo, 0))}</span>'
+                           f'{fmt_int(vermelhas_tipo.get(tipo, 0))}</span>'
                            if vermelhas_tipo.get(tipo, 0) else '')
                         + f'{fmt_int(count)}<em>{pct:.1f}%</em></span>'
                         '</div>'
@@ -2128,8 +2128,8 @@ with tab_acomp:
             if len(vermelhas_tipo):
                 st.markdown(
                     '<div style="font-size:12px;color:rgba(255,255,255,0.62);margin-top:6px">'
-                    f'<span style="color:{COR_ATRASO["vermelho"]};font-weight:700">●</span> '
-                    f'OS com mais de {ATRASO_LIMITE} dias em aberto</div>',
+                    f'<span style="color:{COR_ATRASO["vermelho"]};font-weight:700">Número em vermelho</span>: '
+                    f'quantas OS daquele tipo estão com mais de {ATRASO_LIMITE} dias em aberto (já incluídas no total)</div>',
                     unsafe_allow_html=True,
                 )
 
