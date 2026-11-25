@@ -1600,20 +1600,32 @@ if st.session_state.df_loaded is not None:
             st.markdown(
                 """
                 <style>
-                .st-key-btn_limpar_filtros button {
+                /* Seletor bem especifico: o hub.css pinta os botoes da sidebar de
+                   verde, e esta regra precisa vencer a dele. */
+                section[data-testid="stSidebar"] div.st-key-btn_limpar_filtros [data-testid="stButton"] button[kind],
+                section[data-testid="stSidebar"] div.st-key-btn_limpar_filtros [data-testid="stButton"] button[data-testid] {
                     background: rgba(255, 107, 107, 0.12) !important;
+                    background-image: none !important;
                     border: 1px solid rgba(255, 107, 107, 0.55) !important;
                     color: #FF8A8A !important;
+                    box-shadow: none !important;
                     border-radius: 12px !important;
                     font-weight: 600 !important;
                     transition: background 0.15s ease, border-color 0.15s ease;
                 }
-                .st-key-btn_limpar_filtros button:hover {
-                    background: rgba(255, 107, 107, 0.22) !important;
+                section[data-testid="stSidebar"] div.st-key-btn_limpar_filtros [data-testid="stButton"] button[kind]:hover,
+                section[data-testid="stSidebar"] div.st-key-btn_limpar_filtros [data-testid="stButton"] button[data-testid]:hover {
+                    background: rgba(255, 107, 107, 0.24) !important;
+                    background-image: none !important;
                     border-color: #FF6B6B !important;
                     color: #FFFFFF !important;
                 }
-                .st-key-btn_limpar_filtros button p {
+                section[data-testid="stSidebar"] div.st-key-btn_limpar_filtros [data-testid="stButton"] button::before,
+                section[data-testid="stSidebar"] div.st-key-btn_limpar_filtros [data-testid="stButton"] button::after {
+                    display: none !important;
+                }
+                section[data-testid="stSidebar"] div.st-key-btn_limpar_filtros [data-testid="stButton"] button p,
+                section[data-testid="stSidebar"] div.st-key-btn_limpar_filtros [data-testid="stButton"] button * {
                     color: inherit !important;
                 }
                 </style>
