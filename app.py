@@ -1341,6 +1341,31 @@ def load_logo_centralizada_no_c(path: str, altura_ae: float = 0.25):
     except Exception:
         return None
 
+def cidades_das_os(df):
+    """Cidade de cada OS, pela 'Zona Ligacao' (ZONA_CIDADE). Sem zona/cidade = vazio."""
+    if "Zona Ligacao" not in df.columns:
+        return pd.Series("", index=df.index)
+    zonas = pd.to_numeric(df["Zona Ligacao"], errors="coerce")
+    return zonas.map(lambda z: ZONA_CIDADE.get(int(z), "") if pd.notna(z) else "")
+
+
+def mascara_cidades(df, cidades):
+    """True nas OS das cidades escolhidas (lista vazia = todas)."""
+    if not cidades:
+        return pd.Series(True, index=df.index)
+    return cidades_das_os(df).isin(cidades)
+
+
+def limpar_filtros():
+    """Botao 'Limpar filtros' da sidebar: volta colaborador, tipo, cidade e o
+    dia clicado no grafico do Tramite para o padrao (tudo)."""
+    st.session_state["colab_select"] = "Todos"
+    st.session_state["tipo_multiselect"] = []
+    st.session_state["cidade_multiselect"] = []
+    for chave in [k for k in st.session_state.keys() if str(k).startswith("chart_tramite_")]:
+        del st.session_state[chave]
+
+
 def filtrar_tipo_pelo_grafico(tipo):
     """Clique numa barra de 'Distribuicao por Tipo de Servico': filtra so esse
     tipo na sidebar. Se o filtro ja era so esse tipo, limpa (volta a 'Todos')."""
@@ -1462,6 +1487,7 @@ def carregar_extracao(uploaded_file):
 # Sem arquivo carregado a sidebar nao aparece: o upload fica na tela inicial.
 selected_colab = "Todos"
 selected_tipos = []
+selected_cidades = []
 if st.session_state.df_loaded is not None:
     with st.sidebar:
         logo = load_logo_centralizada_no_c(ICONE_FAT)
@@ -1559,6 +1585,43 @@ if st.session_state.df_loaded is not None:
             )
         else:
             selected_tipos = []
+
+        # Filtro por cidade (multiplas; lista vazia = todas). A cidade vem da Zona Ligacao.
+        if df_for_types is not None and "Zona Ligacao" in df_for_types.columns:
+            cidades_disponiveis = sorted(c for c in cidades_das_os(df_for_types).unique() if c)
+            st.markdown('<p class="hub-label">Cidade</p>', unsafe_allow_html=True)
+            selected_cidades = st.multiselect(
+                "Cidade", cidades_disponiveis, key="cidade_multiselect",
+                placeholder="Todas", label_visibility="collapsed",
+            )
+
+        if df_for_types is not None:
+            # Botao vermelho para zerar todos os filtros de uma vez
+            st.markdown(
+                """
+                <style>
+                .st-key-btn_limpar_filtros button {
+                    background: rgba(255, 107, 107, 0.12) !important;
+                    border: 1px solid rgba(255, 107, 107, 0.55) !important;
+                    color: #FF8A8A !important;
+                    border-radius: 12px !important;
+                    font-weight: 600 !important;
+                    transition: background 0.15s ease, border-color 0.15s ease;
+                }
+                .st-key-btn_limpar_filtros button:hover {
+                    background: rgba(255, 107, 107, 0.22) !important;
+                    border-color: #FF6B6B !important;
+                    color: #FFFFFF !important;
+                }
+                .st-key-btn_limpar_filtros button p {
+                    color: inherit !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.button("Limpar filtros", key="btn_limpar_filtros", on_click=limpar_filtros,
+                      use_container_width=True)
 
         if df_for_types is not None:
             st.markdown("---")
@@ -1780,6 +1843,9 @@ else:
 # Aplicar filtro por tipo de servico (um ou mais tipos; BACKLOG = tipos do backlog)
 if selected_tipos:
     df_view = df_view[mascara_tipos(df_view["Tipo de Solicitação"], selected_tipos)]
+# Filtro por cidade (sidebar)
+if selected_cidades:
+    df_view = df_view[mascara_cidades(df_view, selected_cidades)]
 
 total_os = len(df_view)
 os_por_dia = df_view.groupby(df_view["Data Tramite"].dt.date).size()
@@ -2232,6 +2298,8 @@ with tab_acomp:
 df_mapa = df
 if selected_tipos:
     df_mapa = df_mapa[mascara_tipos(df_mapa["Tipo de Solicitação"], selected_tipos)]
+if selected_cidades:
+    df_mapa = df_mapa[mascara_cidades(df_mapa, selected_cidades)]
 if selected_dia is not None:
     df_mapa = df_mapa[df_mapa["Data Tramite"].dt.date == selected_dia]
 
@@ -2406,6 +2474,8 @@ if st.session_state.is_admin:
                 df_e = df_enc.copy()
                 if selected_tipos and "Tipo de Solicitação" in df_e.columns:
                     df_e = df_e[mascara_tipos(df_e["Tipo de Solicitação"], selected_tipos)]
+                if selected_cidades and "Zona Ligacao" in df_e.columns:
+                    df_e = df_e[mascara_cidades(df_e, selected_cidades)]
 
                 # Considera apenas quem esta na distribuicao; usuarios divergentes
                 # (de outras equipes) sao desconsiderados.
