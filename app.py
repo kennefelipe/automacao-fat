@@ -137,19 +137,17 @@ except TypeError:
 # ---------------------------------------------------------------------------
 # Nova distribuicao (planilha Analise_OS_e_Nova_Distribuicao_Set-Nov2026,
 # aba 'Zonas para o Sistema', aplicada em 26/11/2026): 318 zonas, 8 responsaveis.
+# Thauane, Gabriel e Felipe sairam do HOP em 27/11/2026 (sem OS atribuidas).
 COLABORADORES_ZONAS = {
     "ALEXANDRE PEDROSO LOPES": [],
     "AMANDA BARCELLOS": [1, 2, 13, 20, 30, 40, 41, 48, 51, 53, 59, 60, 65, 71, 79, 88, 105, 107, 116, 127, 138, 146, 148, 149, 154, 164, 166, 174, 177, 178, 179, 204, 206, 213, 217, 218, 220, 232, 236, 241, 248, 250, 261, 269, 284, 286, 406, 410, 422, 432, 467, 468, 490],
     "CLEVER FANFA SARMENTO JUNIOR": [82],
     "ELIANA CATARINA BALOK CHAGAS": [46, 57, 97, 132, 143, 145, 155, 187, 225, 226, 227, 239, 245, 263, 272, 298, 414, 415, 430],
-    "FELIPE KENNE DE OLIVEIRA": [],  # sem zonas na nova distribuicao; segue no seletor e na redistribuicao
-    "GABRIEL GODOI TEIXEIRA": [],  # sem zonas na nova distribuicao; segue no seletor e na redistribuicao
     "HELLEN SCHIMIDT DIAS": [7, 31, 96, 210],
     "KEVIN SANSONOVICK MELLO": [11, 12, 15, 19, 24, 27, 38, 45, 47, 54, 66, 72, 81, 83, 85, 87, 92, 106, 108, 118, 129, 131, 137, 161, 167, 169, 195, 205, 221, 223, 228, 249, 275, 276, 285, 292, 294, 311, 403, 404, 416, 425, 439, 444, 446, 463, 465, 498],
     "MAYARA AMARAL DORNELLES": [4, 5, 9, 14, 22, 25, 26, 28, 29, 33, 34, 36, 39, 42, 44, 52, 55, 56, 62, 63, 64, 69, 70, 73, 94, 99, 100, 101, 102, 110, 114, 115, 119, 122, 130, 152, 153, 156, 157, 159, 160, 162, 163, 165, 173, 180, 182, 184, 185, 186, 188, 189, 190, 191, 192, 194, 196, 198, 199, 201, 202, 208, 224, 229, 230, 231, 233, 242, 256, 257, 258, 277, 279, 281, 283, 293, 296, 409, 411, 423, 426, 433, 438, 441, 442, 443, 452, 461, 466, 497],
     "PEDRO ARTHUR ALVES DE FREITAS": [6, 8, 10, 17, 18, 21, 23, 32, 35, 37, 43, 49, 50, 58, 61, 67, 74, 75, 76, 77, 78, 80, 84, 86, 89, 90, 91, 93, 98, 103, 104, 109, 111, 113, 117, 120, 121, 123, 124, 125, 128, 133, 135, 136, 139, 140, 141, 144, 147, 150, 151, 158, 168, 170, 171, 175, 176, 193, 197, 200, 207, 211, 212, 214, 215, 216, 219, 235, 237, 238, 240, 251, 262, 270, 280, 289, 295, 297, 299, 405, 408, 412, 413, 418, 419, 420, 421, 429, 435, 445, 447, 449, 451, 455, 458, 460, 491, 499],
     "PRISCILA DA SILVA LIMA": [68, 95, 181, 209, 222],  # + 95 Gramado (empreendedores de Gramado)
-    "THAUANE REBELLO GARIN": [],  # sem zonas na nova distribuicao; segue no seletor e na redistribuicao
 }
 
 # Login de encerramento (coluna "Usuario Encerramento") de cada colaborador da
@@ -1571,18 +1569,15 @@ if st.session_state.df_loaded is not None:
             # Filtro por tipo de servico (multiplos; lista vazia = todos)
         if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
             tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
-            # BACKLOG fica sempre no topo. Com ele marcado, os tipos do backlog
-            # somem da lista (ja estao incluidos) e saem da selecao, se estavam.
-            # Ajuste feito ANTES de instanciar o multiselect (regra do Streamlit).
+            # Tira da selecao o que nao existe mais na lista (ex.: a antiga opcao
+            # BACKLOG). Ajuste feito ANTES de instanciar o multiselect.
             escolha_atual = st.session_state.get("tipo_multiselect", [])
-            if OPCAO_BACKLOG in escolha_atual:
-                tipos_disponiveis = [t for t in tipos_disponiveis if not eh_backlog(t)]
-                sem_repetidos = [t for t in escolha_atual if t == OPCAO_BACKLOG or not eh_backlog(t)]
-                if sem_repetidos != escolha_atual:
-                    st.session_state["tipo_multiselect"] = sem_repetidos
+            validos = [t for t in escolha_atual if t in tipos_disponiveis]
+            if validos != escolha_atual:
+                st.session_state["tipo_multiselect"] = validos
             st.markdown('<p class="hub-label">Tipo de Serviço</p>', unsafe_allow_html=True)
             selected_tipos = st.multiselect(
-                "Tipo de Serviço", [OPCAO_BACKLOG] + tipos_disponiveis, key="tipo_multiselect",
+                "Tipo de Serviço", tipos_disponiveis, key="tipo_multiselect",
                 placeholder="Todos", label_visibility="collapsed",
             )
         else:
