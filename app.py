@@ -177,6 +177,11 @@ CODIGOS_EXCLUSIVOS = {
     "306006": "ALEXANDRE PEDROSO LOPES",
 }
 
+# Tipos que so aparecem para o dono (CODIGOS_EXCLUSIVOS): ficam fora da visao
+# "Todos" (cards, graficos, tabela, mapa e lista de tipos da sidebar).
+# 112001 Devolucao de Valores - Ligacao: so o Clever ve (desde 27/11/2026).
+CODIGOS_SO_DO_DONO = {"112001"}
+
 # Quem cuida de solicitacoes especificas (tipos exclusivos) e, por isso, NAO
 # entra no rateio quando a ausencia de alguem e redistribuida para todos.
 FORA_DA_REDISTRIBUICAO = {
@@ -493,6 +498,14 @@ _TEXTO_DOS_CODIGOS = {
     "206004": lambda t: "cancelamento" in t and "fatura" in t and "service now" in t,
     "306006": lambda t: "retificacao" in t and "fatura" in t and "grandes" in t,
 }
+
+
+def sem_codigos_so_do_dono(df):
+    """Tira as OS de CODIGOS_SO_DO_DONO (usado na visao 'Todos')."""
+    if df is None or df.empty:
+        return df
+    codigos, _col = serie_codigos(df)
+    return df[~codigos.isin(CODIGOS_SO_DO_DONO)]
 
 
 def serie_codigos(df):
@@ -1568,7 +1581,10 @@ if st.session_state.df_loaded is not None:
 
             # Filtro por tipo de servico (multiplos; lista vazia = todos)
         if df_for_types is not None and "Tipo de Solicitação" in df_for_types.columns:
-            tipos_disponiveis = sorted(df_for_types["Tipo de Solicitação"].dropna().unique().tolist())
+            base_tipos = df_for_types
+            if selected_colab == "Todos":  # Devolucao de Valores so aparece para o Clever
+                base_tipos = sem_codigos_so_do_dono(df_for_types)
+            tipos_disponiveis = sorted(base_tipos["Tipo de Solicitação"].dropna().unique().tolist())
             # Tira da selecao o que nao existe mais na lista (ex.: a antiga opcao
             # BACKLOG). Ajuste feito ANTES de instanciar o multiselect.
             escolha_atual = st.session_state.get("tipo_multiselect", [])
@@ -1834,7 +1850,8 @@ if not is_todos and selected_colab in distribution:
     df_view = df_colab if not df_colab.empty else df
 else:
     df_colab = pd.DataFrame()
-    df_view = df
+    # "Todos": sem os tipos que so o dono ve (ex.: Devolucao de Valores -> Clever)
+    df_view = sem_codigos_so_do_dono(df)
 
 # Aplicar filtro por tipo de servico (um ou mais tipos; BACKLOG = tipos do backlog)
 if selected_tipos:
@@ -2291,7 +2308,7 @@ with tab_acomp:
 # Base do mapa: respeita tipo e dia, mas nao o colaborador
 # (o mapa tem o proprio seletor no painel da esquerda)
 # ---------------------------------------------------------------------------
-df_mapa = df
+df_mapa = sem_codigos_so_do_dono(df)  # mapa geral: sem os tipos que so o dono ve
 if selected_tipos:
     df_mapa = df_mapa[mascara_tipos(df_mapa["Tipo de Solicitação"], selected_tipos)]
 if selected_cidades:
